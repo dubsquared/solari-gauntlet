@@ -11,18 +11,29 @@ run, does it do what the README claims, is the code any good.
 Built for a hiring challenge that promised *"we review every build that tags
 us."* This is that reviewer. Every submission runs the gauntlet.
 
-```console
-$ npm start -- https://github.com/someone/their-submission
+Real output from a real run:
 
-▶ https://github.com/someone/their-submission
-  sandbox: sbx_9f2c81
-  plan (attempt 1): Vite app; npm install then the dev server on 5173
-    $ npm ci → exit 0
-    $ npm run dev -- --host 0.0.0.0 (background)
-  preview: https://sbx-9f2c81-5173.preview.getsolari.com
-  screenshot saved, title: "Their Submission"
-  ✔ 24/30 → reports/someone-their-submission/report.md
+```console
+$ npm start -- https://github.com/heroku/node-js-getting-started
+
+▶ https://github.com/heroku/node-js-getting-started
+  sandbox: ZGVza3RvcC1wb29sLWktMDZjMWYz...
+  plan (attempt 1): Express app; PORT env var sets listening port, default binds all interfaces
+    $ npm install → exit 0
+    $ PORT=3000 node index.js (background)
+  preview: https://...preview.getsolari.com
+  screenshot saved, title: "Node.js Getting Started on Heroku"
+  ✔ 22/30 → reports/heroku-node-js-getting-started/report.md
 ```
+
+Two reviews from live runs are committed in this repo, screenshots included:
+
+- [heroku/node-js-getting-started → 22/30](reports/heroku-node-js-getting-started/report.md)
+  — the reviewer flagged the Node engine mismatch, the npm audit findings,
+  and that the db-backed page went unverified.
+- [mdn/beginner-html-site-styled → 21/30](reports/mdn-beginner-html-site-styled/report.md)
+  — it noticed the repo is an unmodified tutorial clone and scored it
+  accordingly as a hiring submission. That's the judgment the tool is for.
 
 ## Why this needs Solari
 

@@ -51,7 +51,9 @@ export async function probeWeb(
     await page.screenshot({ path: join(reportDir, screenshot), fullPage: true })
     console.log(`  screenshot saved, title: ${JSON.stringify(title)}`)
 
-    return { kind: "web", url, title, pageText, consoleErrors, screenshot }
+    // Report the bare URL: the pt_token query param is a short-lived access
+    // token and has no business in a committed report.
+    return { kind: "web", url: url.split("?")[0], title, pageText, consoleErrors, screenshot }
   } finally {
     await browser.close()
     // Without this the loopback proxy keeps the event loop alive on some

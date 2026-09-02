@@ -5,6 +5,11 @@ import { join } from "node:path"
 import type { ExecutedPlan } from "./sandbox.js"
 import type { ProbeResult, Verdict } from "./types.js"
 
+/** Strip short-lived preview tokens from anything that lands in a report. */
+function sanitize(text: string): string {
+  return text.replace(/\?pt_token=[^\s`'")]*/g, "")
+}
+
 function bar(score: number): string {
   return "█".repeat(Math.round(score)) + "░".repeat(10 - Math.round(score))
 }
@@ -48,11 +53,11 @@ export async function writeReport(
     lines.push(
       "",
       "## Live probe",
-      `Opened \`${probe.url}\` in a Solari cloud browser.`,
+      `Opened \`${sanitize(probe.url ?? "")}\` in a Solari cloud browser.`,
       "",
       `- title: ${JSON.stringify(probe.title ?? "")}`,
       `- console errors: ${probe.consoleErrors.length === 0 ? "none" : ""}`,
-      ...probe.consoleErrors.map((e) => `  - \`${e}\``),
+      ...probe.consoleErrors.map((e) => `  - \`${sanitize(e)}\``),
     )
     if (probe.screenshot) lines.push("", `![screenshot](${probe.screenshot})`)
   } else if (probe.output) {
