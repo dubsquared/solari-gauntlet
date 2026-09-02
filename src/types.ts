@@ -7,6 +7,8 @@ export interface RunPlan {
   setup: string[]
   /** Command that starts the app (web) or produces its output (cli). */
   run: string
+  /** Command that runs the repo's own test suite; undefined when none exists. */
+  test?: string
   /** Port the app listens on. Required when kind is "web". */
   port?: number
   /** One-line rationale, shown in the report. */
@@ -20,9 +22,30 @@ export interface StepResult {
   stderr: string
 }
 
+/** The submission's own test suite, run non-fatally after setup. */
+export interface TestRun {
+  cmd: string
+  exitCode: number
+  output: string
+}
+
+/** What we inspect while we already have the code in a sandbox. */
+export interface SecuritySweep {
+  /** npm audit vulnerability counts, when a package.json exists. */
+  auditSummary?: string
+  /** Files matching high-signal secret patterns (paths only, never contents). */
+  secretHits: string[]
+}
+
+export interface PageVisit {
+  path: string
+  title: string
+  errors: number
+}
+
 export interface ProbeResult {
   kind: "web" | "cli"
-  /** Web: the public preview URL that was probed. */
+  /** Web: the public preview URL that was probed (query stripped). */
   url?: string
   /** Web: page title. */
   title?: string
@@ -32,6 +55,14 @@ export interface ProbeResult {
   consoleErrors: string[]
   /** Web: path to the saved screenshot, relative to the report dir. */
   screenshot?: string
+  /** Web: wall time for the landing page's DOM to load. */
+  loadMs?: number
+  /** Web: additional same-origin pages visited beyond the landing page. */
+  extraPages?: PageVisit[]
+  /** Web: rrweb events captured in the session replay, when recorded. */
+  replayEvents?: number
+  /** Web: replay file name relative to the report dir. */
+  replayFile?: string
   /** CLI: captured output of the run command. */
   output?: string
 }
@@ -46,4 +77,6 @@ export interface Verdict {
   strengths: string[]
   concerns: string[]
   summary: string
+  /** Questions a hiring panel should ask this candidate, grounded in the code. */
+  interviewQuestions: string[]
 }

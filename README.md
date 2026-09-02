@@ -76,6 +76,24 @@ GitHub URL
 Claude scores what actually happened → reports/<repo>/report.md
 ```
 
+Beyond run-and-screenshot, every review also:
+
+- **runs the submission's own test suite** and prints the transcript — the
+  single highest-trust signal per engineering-hour, and it's deterministic;
+- **records the whole browser probe** as an rrweb replay
+  (`replay.ndjson`, committed next to the report) — when a candidate says
+  "it worked for me," the dispute ends in thirty seconds;
+- **sweeps for trouble before any repo code executes**: secret-pattern scan
+  and a lockfile-only `npm audit` (no scripts run);
+- **walks beyond the front door**: same-origin pages visited with per-page
+  console-error counts, landing-page load time, and a mobile-viewport
+  screenshot;
+- **generates three interview questions** grounded in the specific code —
+  built to distinguish "wrote it and understands it" from "generated it and
+  shipped";
+- **accounts for itself**: wall time and token spend on every report, and a
+  machine-readable `verdict.json` beside every `report.md`.
+
 Three things make it an agent rather than a script:
 
 - **Self-healing builds.** When `npm ci` fails on a lockfile or a Python app
@@ -117,9 +135,26 @@ opens. `GAUNTLET_MODEL` overrides the reviewer model (default
 | Port preview | Make the sandboxed server publicly reachable, zero config |
 | Cloud browser | Render the app for real: title, text, console errors, screenshot |
 
-Desktop sessions are the natural next step — submissions that are GUI apps
-rather than web apps would get the same treatment via a screenshot of an X11
-screen. The plumbing is identical; `kind: "gui"` is left as roadmap.
+| Session recording | The probe's full DOM-level replay, committed as audit evidence |
+
+## Roadmap (from a seven-persona design review)
+
+Ranked by demand across principal-engineer / CTO / CISO / SRE / QA /
+hiring-manager / DevEx personas:
+
+- **Failure-mode probe** — POST malformed JSON, request missing routes, send
+  oversized bodies; record status codes and stack-trace leaks. "Does it
+  survive hostile input" is the senior-vs-tutorial filter.
+- **Interactive claim verification** — Claude extracts checkable claims from
+  the README ("add a todo, it persists") and emits a bounded action script
+  the probe executes: fill, click, assert, reload. Renders ≠ works.
+- **Cross-batch plagiarism detection** — embed and compare submissions;
+  template clones already get caught, copies of each other don't yet.
+- **Network egress monitor** — log what the submission talks to during
+  install and run; a hiring submission phoning home is a finding.
+- **GitHub Action + `--concurrency N`** — batch reviews in parallel CI.
+- **Desktop sessions for GUI submissions** — same treatment via X11
+  screenshot and VNC stream; the plumbing is identical, `kind: "gui"`.
 
 ## Reviewing hostile code, on purpose
 

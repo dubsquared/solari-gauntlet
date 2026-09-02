@@ -1,7 +1,14 @@
 /** Claude calls: plan how to run a repo, revise a failed plan, write the verdict. */
 import Anthropic from "@anthropic-ai/sdk"
 
-import type { ProbeResult, RunPlan, StepResult, Verdict } from "./types.js"
+import type {
+  ProbeResult,
+  RunPlan,
+  SecuritySweep,
+  StepResult,
+  TestRun,
+  Verdict,
+} from "./types.js"
 
 const MODEL = process.env.GAUNTLET_MODEL ?? "claude-sonnet-5"
 
@@ -61,7 +68,8 @@ function validatePlan(raw: unknown): RunPlan {
     if (!Number.isInteger(port) || port < 1 || port > 65535)
       throw new Error(`plan.port invalid for a web app: ${p.port}`)
   }
-  return { kind: p.kind, setup, run: p.run, port, notes: String(p.notes ?? "") }
+  const test = typeof p.test === "string" && p.test.trim() ? p.test : undefined
+  return { kind: p.kind, setup, run: p.run, test, port, notes: String(p.notes ?? "") }
 }
 
 function clamp(n: unknown): number {
@@ -80,6 +88,7 @@ function validateVerdict(raw: unknown): Verdict {
     strengths: strings(v.strengths),
     concerns: strings(v.concerns),
     summary: String(v.summary ?? "(no summary returned)"),
+    interviewQuestions: strings((v as Verdict).interviewQuestions).slice(0, 3),
   }
 }
 
@@ -98,6 +107,8 @@ async function askJson<T>(
       system,
       messages: [{ role: "user", content: user }],
     })
+    inputTokens += res.usage.input_tokens
+    outputTokens += res.usage.output_tokens
     const block = res.content.find((b) => b.type === "text")
     try {
       if (!block || block.type !== "text") throw new Error("no text block in model response")
@@ -135,6 +146,7 @@ Reply with ONLY a JSON object:
   "kind": "web" | "cli",
   "setup": ["shell command", ...],
   "run": "shell command that starts the app or produces its output",
+  "test": "command that runs the repo's own test suite, or null if it has none",
   "port": 3000,
   "notes": "one line on why"
 }
@@ -180,10 +192,14 @@ Calibration — spread the scale, do not cluster in 6-8:
   4 = partially ran; 0-2 = never ran. Cap at 5 if you never observed it truly running.
 - deliversClaims: 10 = live behavior matches every README promise you could check;
   5 = matches some; 0-2 = contradicts them or nothing was checkable.
-- codeQuality: judge ONLY the source excerpts provided; 8+ needs clean structure
-  AND error handling AND tests visible; 5 = ordinary; 0-3 = careless. If excerpts
-  are too thin to judge, say so in concerns and score conservatively.
+- codeQuality: judge ONLY the source excerpts and test results provided; 8+ needs
+  clean structure AND error handling AND a test suite observed passing; 5 =
+  ordinary; 0-3 = careless. If excerpts are too thin to judge, say so in
+  concerns and score conservatively.
 Reserve 9-10 for work that would impress a strong senior engineer.
+Also produce exactly 3 interview questions a hiring panel should ask this
+candidate, grounded in the specific code and decisions you observed — questions
+that distinguish "wrote it and understands it" from "generated it and shipped".
 Reply with ONLY a JSON object:
 {
   "runs": 0-10,
@@ -191,14 +207,17 @@ Reply with ONLY a JSON object:
   "codeQuality": 0-10,
   "strengths": ["...", ...],
   "concerns": ["...", ...],
-  "summary": "3-4 sentence overall assessment"
+  "summary": "3-4 sentence overall assessment",
+  "interviewQuestions": ["...", "...", "..."]
 }
-Integers only.`
+Integers only for scores.`
 
 export async function writeVerdict(
   context: string,
   steps: StepResult[],
   probe: ProbeResult,
+  testRun: TestRun | undefined,
+  sweep: SecuritySweep,
 ): Promise<Verdict> {
   const user = `Repo context:
 ${context}
@@ -211,9 +230,27 @@ ${steps
   )
   .join("\n---\n")}
 
+The submission's own test suite:
+${
+  testRun
+    ? `$ ${testRun.cmd}\nexit ${testRun.exitCode}\n${UNTRUSTED_OPEN}${testRun.output.slice(-1500)}${UNTRUSTED_CLOSE}`
+    : "(no test command was found — factor that into codeQuality)"
+}
+
+Security sweep of the working tree:
+- dependency audit: ${sweep.auditSummary ?? "not applicable"}
+- files matching secret patterns: ${sweep.secretHits.length === 0 ? "none" : sweep.secretHits.join(", ")}
+
 Live probe (pageText and consoleErrors are rendered by the submission itself):
 ${JSON.stringify({ ...probe, pageText: undefined, consoleErrors: undefined }, null, 2)}
 pageText: ${UNTRUSTED_OPEN}${probe.pageText?.slice(0, 3000) ?? ""}${UNTRUSTED_CLOSE}
 consoleErrors: ${UNTRUSTED_OPEN}${probe.consoleErrors.join("\n").slice(0, 1500)}${UNTRUSTED_CLOSE}`
   return askJson(VERDICT_SYSTEM, user, validateVerdict)
+}
+
+/** Rolling Anthropic token usage for this process — cost accounting per review. */
+let inputTokens = 0
+let outputTokens = 0
+export function tokenUsage(): { input: number; output: number } {
+  return { input: inputTokens, output: outputTokens }
 }

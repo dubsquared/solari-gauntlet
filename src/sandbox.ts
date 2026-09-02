@@ -2,7 +2,7 @@
 import { SolariClient, type Sandbox } from "@solarisdk/sdk"
 
 import { planRun, revisePlan, UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from "./ai.js"
-import type { RunPlan, StepResult } from "./types.js"
+import type { RunPlan, SecuritySweep, StepResult, TestRun } from "./types.js"
 
 const REPO_DIR = "/home/user/repo"
 const MAX_PLAN_ATTEMPTS = 3
@@ -104,6 +104,43 @@ ${UNTRUSTED_OPEN}${sources.stdout || "(none found)"}${UNTRUSTED_CLOSE}`
 export interface ExecutedPlan {
   plan: RunPlan
   steps: StepResult[]
+  testRun?: TestRun
+}
+
+/**
+ * Inspect the working tree while we have it — BEFORE any of its code runs, so
+ * a hostile postinstall can't scrub the evidence. Everything is best-effort:
+ * a sweep failure never blocks the review.
+ */
+export async function securitySweep(sandbox: Sandbox): Promise<SecuritySweep> {
+  const sweep: SecuritySweep = { secretHits: [] }
+  try {
+    const secrets = await sh(
+      sandbox,
+      `cd ${REPO_DIR} && grep -rElI --exclude-dir=.git ` +
+        `'AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY|sk-ant-[a-zA-Z0-9]|ghp_[A-Za-z0-9]{36}|xox[bap]-[0-9]' ` +
+        `. 2>/dev/null | head -10; true`,
+    )
+    sweep.secretHits = secrets.stdout.split("\n").filter(Boolean)
+  } catch {
+    /* best effort */
+  }
+  try {
+    const hasLock = await sh(sandbox, `test -f ${REPO_DIR}/package-lock.json && echo yes || echo no`)
+    if (hasLock.stdout.trim() === "yes") {
+      // audit reads the lockfile only — no install, no scripts execute.
+      const audit = await sh(
+        sandbox,
+        `cd ${REPO_DIR} && npm audit --omit=dev --json 2>/dev/null | ` +
+          `python3 -c "import json,sys; v=json.load(sys.stdin).get('metadata',{}).get('vulnerabilities',{}); print(', '.join(f'{k}: {n}' for k,n in v.items() if n) or 'no known vulnerabilities')" || true`,
+        120_000,
+      )
+      sweep.auditSummary = audit.stdout.trim() || undefined
+    }
+  } catch {
+    /* best effort */
+  }
+  return sweep
 }
 
 /**
@@ -130,6 +167,15 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
     }
 
     if (!failed) {
+      // The submission's own tests, before the server claims the port. A test
+      // failure is evidence for the verdict, never a reason to abort the run.
+      let testRun: TestRun | undefined
+      if (plan.test) {
+        const t = await sh(sandbox, `cd ${REPO_DIR} && CI=true ${plan.test}`, 300_000)
+        testRun = { cmd: plan.test, exitCode: t.exitCode, output: (t.stdout + t.stderr).slice(-3000) }
+        console.log(`    $ ${plan.test} → ${t.exitCode === 0 ? "tests PASS" : `tests FAIL (exit ${t.exitCode})`}`)
+      }
+
       if (plan.kind === "web") {
         // Background the server, then verify it survived its first seconds —
         // otherwise a crash-on-boot reports exit 0 here and the self-healing
@@ -142,7 +188,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
         if (launch.exitCode === 0) {
           steps.push({ ...launch, cmd: plan.run })
           console.log(`    $ ${plan.run} (background, alive after 4s)`)
-          return { plan, steps }
+          return { plan, steps, testRun }
         }
         const log = await appLog(sandbox)
         failed = { cmd: plan.run, exitCode: launch.exitCode || 1, stdout: "", stderr: log }
@@ -152,7 +198,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
         const res = await sh(sandbox, `cd ${REPO_DIR} && ${plan.run}`, 300_000)
         steps.push(res)
         console.log(`    $ ${plan.run} → exit ${res.exitCode}`)
-        if (res.exitCode === 0) return { plan, steps }
+        if (res.exitCode === 0) return { plan, steps, testRun }
         failed = res
       }
     }
