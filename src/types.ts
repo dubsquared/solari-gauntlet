@@ -65,6 +65,16 @@ export interface ProbeResult {
   replayFile?: string
   /** CLI: captured output of the run command. */
   output?: string
+  /** Web: how the app answered deliberately hostile requests. */
+  hostile?: HostileCheck[]
+}
+
+/** One hostile request and how the submission handled it. */
+export interface HostileCheck {
+  check: string
+  status: number | "no response"
+  /** Response body leaked a stack trace — the tutorial-vs-senior tell. */
+  leakedTrace: boolean
 }
 
 export interface Verdict {

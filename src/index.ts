@@ -47,8 +47,9 @@ for (const key of ["SOLARI_API_KEY", "ANTHROPIC_API_KEY"]) {
 
 const pt = new SolariClient({ apiKey: process.env.SOLARI_API_KEY! })
 
-async function review(url: string, slug: string): Promise<ReportSummary> {
-  console.log(`\n▶ ${url}`)
+async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSummary> {
+  const { url, slug } = target
+  console.log(`\n▶ ${url}${target.ref ? ` @ ${target.ref}` : ""}${target.subdir ? ` /${target.subdir}` : ""}`)
   const reportDir = join("reports", slug)
   const sandbox = await bootSandbox(pt)
   console.log(`  sandbox: ${sandbox.sandboxId.slice(0, 24)}…`)
@@ -56,14 +57,14 @@ async function review(url: string, slug: string): Promise<ReportSummary> {
   const startedAt = Date.now()
   const tokensBefore = tokenUsage()
   try {
-    const commit = await cloneRepo(sandbox, url)
+    const { commit, workDir } = await cloneRepo(sandbox, target)
     // Sweep before anything from the repo executes — a hostile postinstall
     // can't scrub evidence it never got to run ahead of.
-    const sweep = await securitySweep(sandbox)
-    const context = await gatherContext(sandbox, url)
+    const sweep = await securitySweep(sandbox, workDir)
+    const context = await gatherContext(sandbox, url, workDir)
     await saveRawContext(reportDir, context)
 
-    const executed = await buildAndRun(sandbox, context)
+    const executed = await buildAndRun(sandbox, context, workDir)
 
     let probe: ProbeResult
     if (executed.plan.kind === "web") {
@@ -103,12 +104,12 @@ async function review(url: string, slug: string): Promise<ReportSummary> {
 
 const summaries: ReportSummary[] = []
 let failures = 0
-for (const { url, slug } of targets) {
+for (const target of targets) {
   try {
-    summaries.push(await review(url, slug))
+    summaries.push(await review(target))
   } catch (err) {
     failures++
-    console.error(`  ✘ ${url}: ${err instanceof Error ? err.message : String(err)}`)
+    console.error(`  ✘ ${target.url}: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 

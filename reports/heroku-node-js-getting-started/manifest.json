@@ -1,0 +1,13 @@
+{
+  "repoUrl": "https://github.com/heroku/node-js-getting-started.git",
+  "reviewedCommit": "63c6674",
+  "sealedAt": "2026-09-02T21:13:37.398Z",
+  "sha256": {
+    "context.txt": "bea0cbf822a21bb5462a063c91ee0f1638374fc4324095b39381e5f5e80a7439",
+    "replay.ndjson": "0e669fd926e51d8ba319c9cc5c49016a10997941294cd3f98b9de061f2b3c37c",
+    "report.md": "c6d4f4bbdd61b6932082dc683cb64d38b1fd5e493aa7f0da0fb0f5f35150a3c8",
+    "screenshot-mobile.png": "1fa5efb454ee4aa2288ea26e41f6f8b4bf936cd81eb9d4b24f2eac7813c3e33d",
+    "screenshot.png": "3b6e3af46602aee914ed78d5263ba16db377023ac50f96dc47ae246f78d547ec",
+    "verdict.json": "3eafb1afd04d80c6e6e95b69c5b88ca3f947b7a1fa767a1f2009b096f13719d3"
+  }
+}

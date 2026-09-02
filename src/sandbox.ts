@@ -7,11 +7,21 @@ import type { RunPlan, SecuritySweep, StepResult, TestRun } from "./types.js"
 const REPO_DIR = "/home/user/repo"
 const MAX_PLAN_ATTEMPTS = 3
 
+export interface RepoTarget {
+  url: string
+  slug: string
+  /** Branch/tag from a /tree/<ref> URL. */
+  ref?: string
+  /** Subdirectory that is the actual submission, from /tree/<ref>/<path>. */
+  subdir?: string
+}
+
 /**
- * Reject anything but a plain https GitHub repo URL before it goes anywhere
- * near a shell. Returns the canonical URL and an fs-safe slug.
+ * Reject anything but an https GitHub repo URL before it goes anywhere near a
+ * shell. Accepts plain repos and /tree/<branch>/<subdir> deep links — real
+ * submissions arrive as branches and subdirectories of forks.
  */
-export function parseRepoUrl(input: string): { url: string; slug: string } {
+export function parseRepoUrl(input: string): RepoTarget {
   let u: URL
   try {
     u = new URL(input)
@@ -20,11 +30,31 @@ export function parseRepoUrl(input: string): { url: string; slug: string } {
   }
   if (u.protocol !== "https:" || u.hostname !== "github.com")
     throw new Error(`only https://github.com/<owner>/<repo> URLs are accepted: ${input}`)
-  const m = u.pathname.match(/^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(\.git)?\/?$/)
-  if (!m) throw new Error(`URL path is not <owner>/<repo>: ${input}`)
+  const m = u.pathname.match(
+    /^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:\/tree\/([A-Za-z0-9_.\/-]+?))?\/?$/,
+  )
+  if (!m) throw new Error(`URL path is not <owner>/<repo>[/tree/<ref>[/<dir>]]: ${input}`)
+  const [, owner, repo, treePath] = m
+  let ref: string | undefined
+  let subdir: string | undefined
+  if (treePath) {
+    // Without hitting the API we can't know where the ref ends and the path
+    // starts; treat the first segment as the ref, the rest as the subdir.
+    // Multi-segment refs are rare in submissions; slashes in subdirs are not.
+    const segs = treePath.split("/").filter(Boolean)
+    ref = segs[0]
+    if (segs.length > 1) {
+      subdir = segs.slice(1).join("/")
+      if (subdir.split("/").some((s) => s === "." || s === ".."))
+        throw new Error(`suspicious subdir path: ${input}`)
+    }
+  }
+  const slugTail = [ref, subdir?.split("/").at(-1)].filter(Boolean).join("-")
   return {
-    url: `https://github.com/${m[1]}/${m[2]}.git`,
-    slug: `${m[1]}-${m[2]}`.replace(/\.+/g, "."),
+    url: `https://github.com/${owner}/${repo}.git`,
+    slug: `${owner}-${repo}${slugTail ? `-${slugTail}` : ""}`.replace(/\.+/g, "."),
+    ref,
+    subdir,
   }
 }
 
@@ -51,37 +81,47 @@ export async function sh(sandbox: Sandbox, cmd: string, timeoutMs = 180_000): Pr
 }
 
 /** Clone via argv (no shell interpolation of the URL) and report the HEAD sha. */
-export async function cloneRepo(sandbox: Sandbox, repoUrl: string): Promise<string> {
-  const clone = await sandbox.commands.run("git", {
-    args: ["clone", "--depth", "1", "--", repoUrl, REPO_DIR],
-    timeoutMs: 120_000,
-  })
+export async function cloneRepo(
+  sandbox: Sandbox,
+  target: RepoTarget,
+): Promise<{ commit: string; workDir: string }> {
+  const args = ["clone", "--depth", "1"]
+  if (target.ref) args.push("--branch", target.ref)
+  args.push("--", target.url, REPO_DIR)
+  const clone = await sandbox.commands.run("git", { args, timeoutMs: 120_000 })
   if (clone.exitCode !== 0) throw new Error(`clone failed: ${clone.stderr.slice(-500)}`)
   const head = await sh(sandbox, `cd ${REPO_DIR} && git rev-parse --short HEAD`)
-  return head.stdout.trim()
+  let workDir = REPO_DIR
+  if (target.subdir) {
+    workDir = `${REPO_DIR}/${target.subdir}`
+    const exists = await sh(sandbox, `test -d '${workDir.replaceAll("'", "")}' && echo yes || echo no`)
+    if (exists.stdout.trim() !== "yes")
+      throw new Error(`subdirectory not found in repo: ${target.subdir}`)
+  }
+  return { commit: head.stdout.trim(), workDir }
 }
 
 /**
  * File tree + README + manifests + source excerpts. The excerpts exist so the
  * verdict's codeQuality score is grounded in code the model actually saw.
  */
-export async function gatherContext(sandbox: Sandbox, repoUrl: string): Promise<string> {
+export async function gatherContext(sandbox: Sandbox, repoUrl: string, workDir: string): Promise<string> {
   const tree = await sh(
     sandbox,
-    `cd ${REPO_DIR} && find . -path ./.git -prune -o -type f -print | head -200`,
+    `cd ${workDir} && find . -path ./.git -prune -o -type f -print | head -200`,
   )
   const readme = await sh(
     sandbox,
-    `cd ${REPO_DIR} && head -c 4000 README.md 2>/dev/null || head -c 4000 readme.md 2>/dev/null || true`,
+    `cd ${workDir} && head -c 4000 README.md 2>/dev/null || head -c 4000 readme.md 2>/dev/null || true`,
   )
   const manifests = await sh(
     sandbox,
-    `cd ${REPO_DIR} && for f in package.json requirements.txt pyproject.toml Makefile go.mod Cargo.toml; do ` +
+    `cd ${workDir} && for f in package.json requirements.txt pyproject.toml Makefile go.mod Cargo.toml; do ` +
       `[ -f "$f" ] && echo "=== $f ===" && head -c 2000 "$f"; done; true`,
   )
   const sources = await sh(
     sandbox,
-    `cd ${REPO_DIR} && find . -path ./.git -prune -o \\( -name node_modules -o -name dist -o -name build -o -name vendor \\) -prune -o ` +
+    `cd ${workDir} && find . -path ./.git -prune -o \\( -name node_modules -o -name dist -o -name build -o -name vendor \\) -prune -o ` +
       `-type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.py' -o -name '*.go' -o -name '*.rs' \\) -print ` +
       `| grep -viE 'test|spec|\\.min\\.|\\.d\\.ts' | sort | head -5 ` +
       `| while read -r f; do echo "=== $f ==="; head -c 3000 "$f"; echo; done; true`,
@@ -112,12 +152,12 @@ export interface ExecutedPlan {
  * a hostile postinstall can't scrub the evidence. Everything is best-effort:
  * a sweep failure never blocks the review.
  */
-export async function securitySweep(sandbox: Sandbox): Promise<SecuritySweep> {
+export async function securitySweep(sandbox: Sandbox, workDir: string): Promise<SecuritySweep> {
   const sweep: SecuritySweep = { secretHits: [] }
   try {
     const secrets = await sh(
       sandbox,
-      `cd ${REPO_DIR} && grep -rElI --exclude-dir=.git ` +
+      `cd ${workDir} && grep -rElI --exclude-dir=.git ` +
         `'AKIA[0-9A-Z]{16}|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY|sk-ant-[a-zA-Z0-9]|ghp_[A-Za-z0-9]{36}|xox[bap]-[0-9]' ` +
         `. 2>/dev/null | head -10; true`,
     )
@@ -126,12 +166,12 @@ export async function securitySweep(sandbox: Sandbox): Promise<SecuritySweep> {
     /* best effort */
   }
   try {
-    const hasLock = await sh(sandbox, `test -f ${REPO_DIR}/package-lock.json && echo yes || echo no`)
+    const hasLock = await sh(sandbox, `test -f ${workDir}/package-lock.json && echo yes || echo no`)
     if (hasLock.stdout.trim() === "yes") {
       // audit reads the lockfile only — no install, no scripts execute.
       const audit = await sh(
         sandbox,
-        `cd ${REPO_DIR} && npm audit --omit=dev --json 2>/dev/null | ` +
+        `cd ${workDir} && npm audit --omit=dev --json 2>/dev/null | ` +
           `python3 -c "import json,sys; v=json.load(sys.stdin).get('metadata',{}).get('vulnerabilities',{}); print(', '.join(f'{k}: {n}' for k,n in v.items() if n) or 'no known vulnerabilities')" || true`,
         120_000,
       )
@@ -147,7 +187,7 @@ export async function securitySweep(sandbox: Sandbox): Promise<SecuritySweep> {
  * Plan → execute → on failure, feed the error back and replan. The loop that
  * makes this an agent instead of a script.
  */
-export async function buildAndRun(sandbox: Sandbox, context: string): Promise<ExecutedPlan> {
+export async function buildAndRun(sandbox: Sandbox, context: string, workDir: string): Promise<ExecutedPlan> {
   const priorPlans: RunPlan[] = []
   let plan = await planRun(context)
   const steps: StepResult[] = []
@@ -157,7 +197,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
     let failed: StepResult | undefined
 
     for (const cmd of plan.setup) {
-      const res = await sh(sandbox, `cd ${REPO_DIR} && ${cmd}`, 300_000)
+      const res = await sh(sandbox, `cd ${workDir} && ${cmd}`, 300_000)
       steps.push(res)
       console.log(`    $ ${cmd} → exit ${res.exitCode}`)
       if (res.exitCode !== 0) {
@@ -171,7 +211,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
       // failure is evidence for the verdict, never a reason to abort the run.
       let testRun: TestRun | undefined
       if (plan.test) {
-        const t = await sh(sandbox, `cd ${REPO_DIR} && CI=true ${plan.test}`, 300_000)
+        const t = await sh(sandbox, `cd ${workDir} && CI=true ${plan.test}`, 300_000)
         testRun = { cmd: plan.test, exitCode: t.exitCode, output: (t.stdout + t.stderr).slice(-3000) }
         console.log(`    $ ${plan.test} → ${t.exitCode === 0 ? "tests PASS" : `tests FAIL (exit ${t.exitCode})`}`)
       }
@@ -182,7 +222,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
         // loop never fires on the one path the tool exists for.
         const launch = await sh(
           sandbox,
-          `cd ${REPO_DIR} && nohup sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & ` +
+          `cd ${workDir} && nohup sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & ` +
             `echo $! >/tmp/app.pid; sleep 4; kill -0 "$(cat /tmp/app.pid)" 2>/dev/null`,
         )
         if (launch.exitCode === 0) {
@@ -195,7 +235,7 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
         steps.push(failed)
         console.log(`    $ ${plan.run} → died on startup`)
       } else {
-        const res = await sh(sandbox, `cd ${REPO_DIR} && ${plan.run}`, 300_000)
+        const res = await sh(sandbox, `cd ${workDir} && ${plan.run}`, 300_000)
         steps.push(res)
         console.log(`    $ ${plan.run} → exit ${res.exitCode}`)
         if (res.exitCode === 0) return { plan, steps, testRun }

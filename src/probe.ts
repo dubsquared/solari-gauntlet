@@ -5,7 +5,7 @@ import { join } from "node:path"
 import type { Sandbox } from "@solarisdk/sdk"
 
 import type { ExecutedPlan } from "./sandbox.js"
-import type { PageVisit, ProbeResult } from "./types.js"
+import type { HostileCheck, PageVisit, ProbeResult } from "./types.js"
 
 const READY_TIMEOUT_MS = 90_000
 
@@ -74,6 +74,10 @@ export async function probeWeb(
     // verdict sees more than the front door.
     const extraPages = await crawl(page, url)
 
+    // Failure-mode probe: a missing route and malformed JSON. How an app
+    // fails distinguishes a senior's error handling from a tutorial's.
+    const hostile = await hostileProbe(url)
+
     // Mobile viewport: half the panel's users will open the submission on a
     // phone-width window first.
     await page.setViewportSize({ width: 390, height: 844 })
@@ -91,6 +95,7 @@ export async function probeWeb(
       screenshot,
       loadMs,
       extraPages,
+      hostile,
     }
   } finally {
     // browser.close() failing must not leak the client's loopback proxy —
@@ -149,6 +154,50 @@ async function crawl(page: Page, landingUrl: string): Promise<PageVisit[]> {
     /* crawling is best-effort */
   }
   return visits
+}
+
+const TRACE_MARKERS = [/\bat .+\.[cm]?js:\d+/, /Traceback \(most recent call last\)/, /\.py", line \d+/]
+
+/**
+ * Deliberately hostile requests, same SSRF posture as the readiness poll
+ * (manual redirects, per-request timeout, status + body sniff only).
+ */
+async function hostileProbe(url: string): Promise<HostileCheck[]> {
+  const origin = url // preview URL already points at the app root
+  const attempts: Array<{ check: string; init: RequestInit; path: string }> = [
+    { check: "GET a route that does not exist", path: "/__gauntlet_probe_missing__", init: {} },
+    {
+      check: "POST malformed JSON to /",
+      path: "/",
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: '{"malformed": ',
+      },
+    },
+  ]
+  const results: HostileCheck[] = []
+  for (const a of attempts) {
+    try {
+      // Keep the query string — the preview gateway's access token lives there.
+      const target = new URL(origin)
+      target.pathname = a.path
+      const res = await fetch(target, {
+        ...a.init,
+        redirect: "manual",
+        signal: AbortSignal.timeout(8_000),
+      })
+      const body = (await res.text().catch(() => "")).slice(0, 4000)
+      results.push({
+        check: a.check,
+        status: res.status,
+        leakedTrace: TRACE_MARKERS.some((m) => m.test(body)),
+      })
+    } catch {
+      results.push({ check: a.check, status: "no response", leakedTrace: false })
+    }
+  }
+  return results
 }
 
 /** The upload is async after release — the first polls 404 even on success. */
