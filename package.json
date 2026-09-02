@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "tsx src/index.ts",
+    "smoke": "tsx src/smoke.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
