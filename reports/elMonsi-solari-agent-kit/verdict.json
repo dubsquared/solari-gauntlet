@@ -1,0 +1,33 @@
+{
+  "repoUrl": "https://github.com/elMonsi/solari-agent-kit.git",
+  "commit": "1e08bca",
+  "total": 14,
+  "flagged": false,
+  "verdict": {
+    "runs": 5,
+    "deliversClaims": 3,
+    "codeQuality": 6,
+    "strengths": [
+      "Extensive, well-cited documentation tying each pattern to a specific real-world failure mode (EchoLeak, Replit DB wipe, mcp-remote CVE, etc.) rather than generic marketing",
+      "Code shows deliberate design decisions (allowlist-not-denylist gating, dual-session quarantine boundary, snapshot/fork wrappers) with inline rationale",
+      "Pattern 1 started cleanly, printed config, computed the expected p^N baseline, and failed with a clean, expected AuthError rather than crashing on bad code — shows reasonable error surfacing"
+    ],
+    "concerns": [
+      "Top-level README validation table claims all five patterns were run end-to-end against a live Solari key and pattern 3 'Pass, no changes' — but pattern 3's own source header explicitly states 'this file has NOT been run against the live Solari API.' That is a direct, verifiable contradiction between the README's headline claim and the code's own documentation.",
+      "No live API key was available in this review, so essentially none of the '✅ all five run against real API' claims could be independently confirmed; the only pattern actually executed failed at the network boundary (expected without credentials, but means zero patterns were observed succeeding end-to-end)",
+      "No automated test suite anywhere in the repo — validation is via manual one-off scripts and README narrative rather than repeatable, checked tests",
+      "README tone leans heavily on grandiose framing ('the field's most-cited agent failures... are infrastructure problems') that isn't something a live probe can substantiate",
+      "Pattern 1's own comments admit snapshot/fork/revert method names were 'confirmed against docs... NOT against a live API key,' undermining confidence that the SDK surface used actually matches what ships"
+    ],
+    "summary": "The repo is thoughtfully documented, with genuine engineering reasoning behind each of the five patterns and real citations for the problems being solved, and the one pattern actually executed here started cleanly and failed only due to lack of a live credential. However, the submission's own validation claims are internally inconsistent — the top-level README claims live end-to-end success on pattern 3 while that pattern's source explicitly says it was never run live — and no test suite or independently verifiable live run was observable in this review. Code quality reads as competent and well-commented from the excerpts, but without passing tests or a confirmed live run, claims of full validation should be treated skeptically.",
+    "interviewQuestions": [
+      "Your top-level README table marks pattern 3 (Quarantine Browser) as '✅ Pass, no changes' under live validation, but the file's own header says it has NOT been run against the live API — can you walk me through how that entry ended up in the validation table?",
+      "In pattern 2 you mention discovering that revert() 409s and switching to 'restore-by-fork' — what exactly does that guarantee about state consistency, and how did you verify the fork actually rolled back the destructive operation?",
+      "There's no automated test suite in this repo — how did you actually validate correctness during development, and what would a CI pipeline for these patterns look like if you had to add one?"
+    ]
+  },
+  "cost": {
+    "tokens": 24005,
+    "seconds": 69.961
+  }
+}

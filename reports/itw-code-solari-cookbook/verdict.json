@@ -1,0 +1,34 @@
+{
+  "repoUrl": "https://github.com/itw-code/solari-cookbook.git",
+  "commit": "ae00916",
+  "total": 12,
+  "flagged": false,
+  "verdict": {
+    "runs": 4,
+    "deliversClaims": 3,
+    "codeQuality": 5,
+    "strengths": [
+      "npm install and the gen:variants script both succeeded and produced concrete deterministic output (14 variants -> variants.json), showing at least part of the pipeline is real and wired up",
+      "Example SDK snippets shown (browser-quickstart, profiles, stealth-proxy, session-recording) are well-commented with genuine operational footguns called out (event-loop hangs, replay upload race, gzip decoding gotchas) — suggests real hands-on usage rather than boilerplate",
+      "Extensive supporting artifacts (run traces, screenshots, scorecard.json, per-step logs) indicate a serious attempt at building an evaluation harness with reproducible evidence, not just a claim-only README"
+    ],
+    "concerns": [
+      "The headline command from the README's own 60-second quickstart (`npm run verify`) FAILED in the observed run — tests crashed with process.exit(1) inside patchright-core/bootstrap.js, directly contradicting the '37 passing' badge and the MOCK-mode-no-network claim",
+      "Node engine mismatch (repo requires Node >=20, environment had 18.20.4) surfaced as EBADENGINE warnings and appears to be the root cause of the test crash — no engines guard or graceful fallback in package.json/CI to catch this",
+      "Core logic (agent-loop, verifier, generate-variants internals) was never shown in source excerpts — only peripheral example scripts were available, so code quality of the actual harness (the thing being pitched) is unverifiable",
+      "Repo tree is bloated with committed browser-saved HTML pages, downloaded JS bundles, and binary assets (mp4, gif, many PNG run traces) checked directly into version control — unusual practice for a code submission and makes it hard to distinguish genuine live-agent evidence from staged demo captures",
+      "5 npm audit vulnerabilities (including 1 critical) surfaced on install with no evidence of remediation or awareness in the docs",
+      "Live probe returned essentially empty pageText/consoleErrors — the interactive showcase / actual live agent behavior claimed in the README could not be independently verified"
+    ],
+    "summary": "The project installs and can generate deterministic variant data, and its example SDK snippets are thoughtfully documented, but the one command the README stakes its credibility on — `npm run verify` with '37 tests passing' — crashed in the observed environment due to a Node version mismatch, directly undermining the delivered claims. Because none of the core harness source (agent loop, verifier, variant generator internals) was shown, code quality must be judged almost entirely from peripheral example scripts, which are solid but not representative of the actual pitch. The huge volume of committed binary artifacts and saved-webpage captures raises questions about what is genuinely reproducible versus staged. Overall this reads as ambitious in scope but not verified as working end-to-end.",
+    "interviewQuestions": [
+      "The test suite crashed inside patchright-core/bootstrap.js on Node 18, and the package requires Node >=20 per the install warnings — why isn't there an `engines` field or CI guard to prevent this, and how did you validate the '37 passing' badge before publishing it?",
+      "Walk us through the fail-closed verifier you describe (recomputing ground truth from the seed, reading the SQLite row) — what exactly makes it impossible for the agent's `done` signal to produce a false positive, and did you test that path directly?",
+      "The docs/artifacts directory contains full saved HTML pages and downloaded JS bundles from what looks like a Next.js demo site — were these captured from a real live run against Solari, and how would a reviewer distinguish that from a manually staged screenshot session?"
+    ]
+  },
+  "cost": {
+    "tokens": 45099,
+    "seconds": 95.013
+  }
+}
