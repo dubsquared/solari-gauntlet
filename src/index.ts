@@ -11,12 +11,29 @@ import { join } from "node:path"
 
 import { writeVerdict } from "./ai.js"
 import { probeCli, probeWeb, saveRawContext } from "./probe.js"
-import { appLog, bootSandbox, buildAndRun, cloneRepo, gatherContext } from "./sandbox.js"
-import { writeReport } from "./report.js"
+import {
+  appLog,
+  bootSandbox,
+  buildAndRun,
+  cloneRepo,
+  gatherContext,
+  parseRepoUrl,
+} from "./sandbox.js"
+import { writeIndex, writeReport, type ReportSummary } from "./report.js"
 import type { ProbeResult } from "./types.js"
 
-const repos = process.argv.slice(2).filter((a) => !a.startsWith("-"))
-if (repos.length === 0) {
+const args = process.argv.slice(2)
+const flags = args.filter((a) => a.startsWith("-"))
+if (flags.length > 0) console.warn(`ignoring unknown flag(s): ${flags.join(" ")}`)
+
+let targets
+try {
+  targets = args.filter((a) => !a.startsWith("-")).map(parseRepoUrl)
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err))
+  process.exit(1)
+}
+if (targets.length === 0) {
   console.error("usage: gauntlet <github-repo-url> [more urls...]")
   process.exit(1)
 }
@@ -27,26 +44,17 @@ for (const key of ["SOLARI_API_KEY", "ANTHROPIC_API_KEY"]) {
   }
 }
 
-function slug(repoUrl: string): string {
-  return repoUrl
-    .replace(/\.git$/, "")
-    .split("/")
-    .slice(-2)
-    .join("-")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-}
-
 const pt = new SolariClient({ apiKey: process.env.SOLARI_API_KEY! })
 
-async function review(repoUrl: string): Promise<void> {
-  console.log(`\n▶ ${repoUrl}`)
-  const reportDir = join("reports", slug(repoUrl))
+async function review(url: string, slug: string): Promise<ReportSummary> {
+  console.log(`\n▶ ${url}`)
+  const reportDir = join("reports", slug)
   const sandbox = await bootSandbox(pt)
-  console.log(`  sandbox: ${sandbox.sandboxId}`)
+  console.log(`  sandbox: ${sandbox.sandboxId.slice(0, 24)}…`)
 
   try {
-    await cloneRepo(sandbox, repoUrl)
-    const context = await gatherContext(sandbox, repoUrl)
+    const commit = await cloneRepo(sandbox, url)
+    const context = await gatherContext(sandbox, url)
     await saveRawContext(reportDir, context)
 
     const executed = await buildAndRun(sandbox, context)
@@ -68,23 +76,32 @@ async function review(repoUrl: string): Promise<void> {
     }
 
     const verdict = await writeVerdict(context, executed.steps, probe)
-    const path = await writeReport(reportDir, repoUrl, executed, probe, verdict)
+    const { path, flagged } = await writeReport(reportDir, url, commit, executed, probe, verdict)
     const total = verdict.runs + verdict.deliversClaims + verdict.codeQuality
-    console.log(`  ✔ ${total}/30 → ${path}`)
+    console.log(`  ✔ ${total}/30${flagged ? " ⚠️ flagged" : ""} → ${path}`)
+    return { repoUrl: url, slug, total, verdict, flagged }
   } finally {
     // kill(), not close(): close() only drops the control channel and the VM
-    // would keep billing until its idle timeout.
-    await sandbox.kill()
+    // would keep billing until its idle timeout. Never mask the real error.
+    await sandbox.kill().catch(() => {})
   }
 }
 
+const summaries: ReportSummary[] = []
 let failures = 0
-for (const repoUrl of repos) {
+for (const { url, slug } of targets) {
   try {
-    await review(repoUrl)
+    summaries.push(await review(url, slug))
   } catch (err) {
     failures++
-    console.error(`  ✘ ${repoUrl}: ${err instanceof Error ? err.message : String(err)}`)
+    console.error(`  ✘ ${url}: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
-process.exit(failures === repos.length && repos.length > 0 ? 1 : 0)
+
+if (summaries.length > 1) {
+  const index = await writeIndex("reports", summaries)
+  console.log(`\nranked index → ${index}`)
+}
+
+// Any failed review is a nonzero exit — CI callers need to see partial failure.
+process.exit(failures > 0 ? 1 : 0)

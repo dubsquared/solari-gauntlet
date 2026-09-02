@@ -1,11 +1,32 @@
 /** Sandbox side: clone the repo, gather context for the planner, execute plans. */
 import { SolariClient, type Sandbox } from "@solarisdk/sdk"
 
-import { planRun, revisePlan } from "./ai.js"
+import { planRun, revisePlan, UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from "./ai.js"
 import type { RunPlan, StepResult } from "./types.js"
 
 const REPO_DIR = "/home/user/repo"
 const MAX_PLAN_ATTEMPTS = 3
+
+/**
+ * Reject anything but a plain https GitHub repo URL before it goes anywhere
+ * near a shell. Returns the canonical URL and an fs-safe slug.
+ */
+export function parseRepoUrl(input: string): { url: string; slug: string } {
+  let u: URL
+  try {
+    u = new URL(input)
+  } catch {
+    throw new Error(`not a URL: ${input}`)
+  }
+  if (u.protocol !== "https:" || u.hostname !== "github.com")
+    throw new Error(`only https://github.com/<owner>/<repo> URLs are accepted: ${input}`)
+  const m = u.pathname.match(/^\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(\.git)?\/?$/)
+  if (!m) throw new Error(`URL path is not <owner>/<repo>: ${input}`)
+  return {
+    url: `https://github.com/${m[1]}/${m[2]}.git`,
+    slug: `${m[1]}-${m[2]}`.replace(/\.+/g, "."),
+  }
+}
 
 export async function bootSandbox(pt: SolariClient): Promise<Sandbox> {
   const sandbox = await pt.sandboxes.create({
@@ -13,7 +34,13 @@ export async function bootSandbox(pt: SolariClient): Promise<Sandbox> {
     // Rolling idle window, not a hard deadline — resets on every command.
     timeoutMs: 10 * 60_000,
   })
-  await sandbox.connect()
+  try {
+    await sandbox.connect()
+  } catch (err) {
+    // A VM we failed to connect to would otherwise idle-bill for 10 minutes.
+    await sandbox.kill().catch(() => {})
+    throw err
+  }
   return sandbox
 }
 
@@ -23,12 +50,21 @@ export async function sh(sandbox: Sandbox, cmd: string, timeoutMs = 180_000): Pr
   return { cmd, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr }
 }
 
-export async function cloneRepo(sandbox: Sandbox, repoUrl: string): Promise<void> {
-  const res = await sh(sandbox, `git clone --depth 1 ${repoUrl} ${REPO_DIR}`)
-  if (res.exitCode !== 0) throw new Error(`clone failed: ${res.stderr.slice(-500)}`)
+/** Clone via argv (no shell interpolation of the URL) and report the HEAD sha. */
+export async function cloneRepo(sandbox: Sandbox, repoUrl: string): Promise<string> {
+  const clone = await sandbox.commands.run("git", {
+    args: ["clone", "--depth", "1", "--", repoUrl, REPO_DIR],
+    timeoutMs: 120_000,
+  })
+  if (clone.exitCode !== 0) throw new Error(`clone failed: ${clone.stderr.slice(-500)}`)
+  const head = await sh(sandbox, `cd ${REPO_DIR} && git rev-parse --short HEAD`)
+  return head.stdout.trim()
 }
 
-/** File tree + README + manifests: everything the planner needs, nothing more. */
+/**
+ * File tree + README + manifests + source excerpts. The excerpts exist so the
+ * verdict's codeQuality score is grounded in code the model actually saw.
+ */
 export async function gatherContext(sandbox: Sandbox, repoUrl: string): Promise<string> {
   const tree = await sh(
     sandbox,
@@ -43,16 +79,26 @@ export async function gatherContext(sandbox: Sandbox, repoUrl: string): Promise<
     `cd ${REPO_DIR} && for f in package.json requirements.txt pyproject.toml Makefile go.mod Cargo.toml; do ` +
       `[ -f "$f" ] && echo "=== $f ===" && head -c 2000 "$f"; done; true`,
   )
+  const sources = await sh(
+    sandbox,
+    `cd ${REPO_DIR} && find . -path ./.git -prune -o \\( -name node_modules -o -name dist -o -name build -o -name vendor \\) -prune -o ` +
+      `-type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.py' -o -name '*.go' -o -name '*.rs' \\) -print ` +
+      `| grep -viE 'test|spec|\\.min\\.|\\.d\\.ts' | sort | head -5 ` +
+      `| while read -r f; do echo "=== $f ==="; head -c 3000 "$f"; echo; done; true`,
+  )
   return `Repo: ${repoUrl}
 
 File tree:
-${tree.stdout}
+${UNTRUSTED_OPEN}${tree.stdout}${UNTRUSTED_CLOSE}
 
 README (first 4KB):
-${readme.stdout || "(none)"}
+${UNTRUSTED_OPEN}${readme.stdout || "(none)"}${UNTRUSTED_CLOSE}
 
 Manifests:
-${manifests.stdout || "(none)"}`
+${UNTRUSTED_OPEN}${manifests.stdout || "(none)"}${UNTRUSTED_CLOSE}
+
+Source excerpts (up to 5 files, first 3KB each):
+${UNTRUSTED_OPEN}${sources.stdout || "(none found)"}${UNTRUSTED_CLOSE}`
 }
 
 export interface ExecutedPlan {
@@ -65,6 +111,7 @@ export interface ExecutedPlan {
  * makes this an agent instead of a script.
  */
 export async function buildAndRun(sandbox: Sandbox, context: string): Promise<ExecutedPlan> {
+  const priorPlans: RunPlan[] = []
   let plan = await planRun(context)
   const steps: StepResult[] = []
 
@@ -84,24 +131,35 @@ export async function buildAndRun(sandbox: Sandbox, context: string): Promise<Ex
 
     if (!failed) {
       if (plan.kind === "web") {
-        // Servers block until the idle timeout if run in the foreground.
-        const res = await sh(
+        // Background the server, then verify it survived its first seconds —
+        // otherwise a crash-on-boot reports exit 0 here and the self-healing
+        // loop never fires on the one path the tool exists for.
+        const launch = await sh(
           sandbox,
-          `cd ${REPO_DIR} && nohup sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & sleep 1`,
+          `cd ${REPO_DIR} && nohup sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & ` +
+            `echo $! >/tmp/app.pid; sleep 4; kill -0 "$(cat /tmp/app.pid)" 2>/dev/null`,
         )
-        steps.push({ ...res, cmd: plan.run })
-        console.log(`    $ ${plan.run} (background)`)
-        return { plan, steps }
+        if (launch.exitCode === 0) {
+          steps.push({ ...launch, cmd: plan.run })
+          console.log(`    $ ${plan.run} (background, alive after 4s)`)
+          return { plan, steps }
+        }
+        const log = await appLog(sandbox)
+        failed = { cmd: plan.run, exitCode: launch.exitCode || 1, stdout: "", stderr: log }
+        steps.push(failed)
+        console.log(`    $ ${plan.run} → died on startup`)
+      } else {
+        const res = await sh(sandbox, `cd ${REPO_DIR} && ${plan.run}`, 300_000)
+        steps.push(res)
+        console.log(`    $ ${plan.run} → exit ${res.exitCode}`)
+        if (res.exitCode === 0) return { plan, steps }
+        failed = res
       }
-      const res = await sh(sandbox, `cd ${REPO_DIR} && ${plan.run}`, 300_000)
-      steps.push(res)
-      console.log(`    $ ${plan.run} → exit ${res.exitCode}`)
-      if (res.exitCode === 0) return { plan, steps }
-      failed = res
     }
 
     if (attempt === MAX_PLAN_ATTEMPTS) break
-    plan = await revisePlan(context, plan, failed)
+    priorPlans.push(plan)
+    plan = await revisePlan(context, [...priorPlans], failed)
   }
 
   // Out of attempts: return what happened so the verdict can judge the failure.

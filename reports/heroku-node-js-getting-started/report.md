@@ -1,38 +1,37 @@
-# Gauntlet review — https://github.com/heroku/node-js-getting-started
+# Gauntlet review — https://github.com/heroku/node-js-getting-started.git
 
-**22/30** · reviewed 2026-09-02 · ran as `web`
+**20/30** · reviewed 2026-09-02 at `63c6674` · ran as `web`
 
 | Dimension | Score | |
 | --- | --- | --- |
 | Runs | 8/10 | `████████░░` |
 | Delivers its claims | 7/10 | `███████░░░` |
-| Code quality | 7/10 | `███████░░░` |
+| Code quality | 5/10 | `█████░░░░░` |
 
-This is the standard Heroku Node.js Getting Started template, which installs and runs correctly, serving the expected static content as described in the README. Code quality is fine but minimal since it's largely boilerplate rather than original work. Some engine/version mismatches and unaddressed audit vulnerabilities are minor blemishes, and the db-related view wasn't verified as functional in the live probe.
+The app is the standard Heroku Node.js getting-started template and it does run cleanly, with the live page matching the README's described homepage content. However, there is little evidence of custom implementation work beyond the boilerplate, an unused db.ejs view suggests incomplete features, and code quality can't be rated highly given the minimal excerpts and unverified test suite. Engine version warnings during install indicate some environment friction, though the app still started successfully.
 
 ## Strengths
-- App installs and runs successfully, serving the expected homepage content matching README claims
-- Clean, minimal Express + EJS boilerplate structure with partials for header/nav
-- Includes test.js with Jest configured, Procfile for Heroku deployment, and app.json for one-click deploy
-- No console errors observed on the live probe
+- App started and served correctly on the specified port with no console errors
+- Live-rendered homepage content matches the README's described 'Getting Started on Heroku with Node.js' page
+- Clean, minimal Express + EJS setup with graceful SIGTERM handling and keep-alive tuning matching Heroku's routing recommendations
 
 ## Concerns
-- Node engine mismatch: package.json requires Node 22.x/24.x/26.x but ran on 18.20.4 with EBADENGINE warnings
-- 3 npm audit vulnerabilities (1 moderate, 2 high) present and unaddressed
-- This is essentially Heroku's official boilerplate/template repo, not a custom submission demonstrating original problem-solving
-- db.ejs page and any database-backed functionality weren't exercised/verified in the probe
-- Deprecated transitive dependencies (glob, inflight) still present
+- This submission is essentially the stock heroku/node-js-getting-started boilerplate with no visible custom features or challenge-specific logic
+- views/pages/db.ejs exists in the tree but no corresponding /db route appears in the shown index.js, suggesting incomplete or orphaned functionality
+- npm install produced an EBADENGINE warning (Node 18 installed vs required 22.x/24.x/26.x) plus 3 audit vulnerabilities, indicating environment/dependency friction not fully resolved
+- test.js is present but its contents and whether tests actually pass were not shown/verified
+- Source excerpts are very thin (only index.js shown in full); insufficient evidence of error handling, input validation, or test coverage to judge code quality highly
 
 ## How it was run
-> Express app; PORT env var sets listening port, default binds all interfaces
+> Simple Express app; index.js listens on PORT env var, no DB/keys required for root route
 
 ```console
 $ cd /home/user/repo && npm install   # exit 0
-$ PORT=3000 node index.js   # exit 0
+$ PORT=3000 npm start   # exit 0
 ```
 
 ## Live probe
-Opened `https://70fcd7d649684c2eb443-3000.preview.getsolari.com` in a Solari cloud browser.
+Opened `https://dd8c5e8457c46bdc92eb-3000.preview.getsolari.com` in a Solari cloud browser.
 
 - title: "Node.js Getting Started on Heroku"
 - console errors: none

@@ -7,9 +7,6 @@
   "engines": {
     "node": ">=20"
   },
-  "bin": {
-    "gauntlet": "src/index.ts"
-  },
   "scripts": {
     "start": "tsx src/index.ts",
     "smoke": "tsx src/smoke.ts",
