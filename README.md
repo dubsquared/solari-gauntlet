@@ -9,7 +9,10 @@ in a Solari cloud browser, screenshots it, and writes a scored review — does i
 run, does it do what the README claims, is the code any good.
 
 Built for a hiring challenge that promised *"we review every build that tags
-us."* This is that reviewer. Every submission runs the gauntlet.
+us."* This is that reviewer. Every submission runs the gauntlet — including
+the actual contest field: **[the live leaderboard](LEADERBOARD.md)** ranks
+every public submission to the challenge, this repo among them, same rubric,
+no special treatment.
 
 Real output from a real run:
 
