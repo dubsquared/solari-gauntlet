@@ -4,6 +4,9 @@
   "description": "AI code-review agent: clones any GitHub repo into a Solari sandbox, figures out how to run it, probes it with a Solari cloud browser, and writes a scored review.",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "gauntlet": "src/index.ts"
   },

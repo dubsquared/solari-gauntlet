@@ -34,6 +34,14 @@ Two reviews from live runs are committed in this repo, screenshots included:
 - [mdn/beginner-html-site-styled → 21/30](reports/mdn-beginner-html-site-styled/report.md)
   — it noticed the repo is an unmodified tutorial clone and scored it
   accordingly as a hiring submission. That's the judgment the tool is for.
+- [dubsquared/solari-gauntlet → 18/30](reports/dubsquared-solari-gauntlet/report.md)
+  — yes, it reviewed itself. It couldn't observe its own pipeline live
+  (no real API keys inside a reviewer's sandbox), so it refused to award
+  "Runs" points on faith — and along the way the self-healing planner hit
+  the sandbox's Node 18, diagnosed the engine mismatch, and upgraded Node
+  inside the VM to keep going. It flagged the missing `engines` field as
+  real onboarding friction; that fix is now committed. A reviewer that
+  gives itself 30/30 is a reviewer you can't trust.
 
 ## Why this needs Solari
 
