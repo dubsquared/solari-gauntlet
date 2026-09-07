@@ -1,13 +1,13 @@
 {
   "repoUrl": "https://github.com/heroku/node-js-getting-started.git",
-  "reviewedCommit": "63c6674",
-  "sealedAt": "2026-09-02T21:13:37.398Z",
+  "reviewedCommit": "7233aca",
+  "sealedAt": "2026-09-07T22:45:11.379Z",
   "sha256": {
-    "context.txt": "bea0cbf822a21bb5462a063c91ee0f1638374fc4324095b39381e5f5e80a7439",
+    "context.txt": "1e0f97fc79207a89a2cb24d14c7f9907c2884575f5d0886ae34e417e6bb94347",
     "replay.ndjson": "0e669fd926e51d8ba319c9cc5c49016a10997941294cd3f98b9de061f2b3c37c",
-    "report.md": "c6d4f4bbdd61b6932082dc683cb64d38b1fd5e493aa7f0da0fb0f5f35150a3c8",
+    "report.md": "583c5a963da6db6652757ff66beed34eff3f4d0af08fd5e73889e9d5cce6f0ac",
     "screenshot-mobile.png": "1fa5efb454ee4aa2288ea26e41f6f8b4bf936cd81eb9d4b24f2eac7813c3e33d",
     "screenshot.png": "3b6e3af46602aee914ed78d5263ba16db377023ac50f96dc47ae246f78d547ec",
-    "verdict.json": "3eafb1afd04d80c6e6e95b69c5b88ca3f947b7a1fa767a1f2009b096f13719d3"
+    "verdict.json": "ece41c32b0a855796f30bbc6cf135e9dff232cd3093e65d010ed2f6cea5c7935"
   }
 }

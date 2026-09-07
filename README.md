@@ -127,8 +127,19 @@ npm start -- https://github.com/heroku/node-js-getting-started
 Reports land in `reports/<owner>-<repo>/` as markdown with the screenshot
 embedded. Pass several URLs and you also get `reports/index.md` — a ranked
 table across the batch, which is the artifact a hiring reviewer actually
-opens. `GAUNTLET_MODEL` overrides the reviewer model (default
-`claude-sonnet-5`).
+opens. Submissions that live on a branch or in a subdirectory work as-is:
+`.../tree/<branch>/<path>` URLs are understood.
+
+Batch controls, tuned for a finance sign-off:
+
+- `--concurrency N` — parallel reviews (Solari Starter allows 2 concurrent
+  sandboxes; two reviews finish in about the wall time of one).
+- `--budget-tokens N` (or `GAUNTLET_MAX_TOKENS`) — hard ceiling on Anthropic
+  tokens for the whole batch. Crossing it skips the remaining repos loudly
+  and exits nonzero; nothing is ever reviewed on a blown budget.
+- Every report carries its own wall-time + token cost line, and the batch
+  prints a totals line at the end.
+- `GAUNTLET_MODEL` overrides the reviewer model (default `claude-sonnet-5`).
 
 ## What each Solari product does here
 

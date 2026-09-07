@@ -24,12 +24,39 @@ import { writeIndex, writeReport, type ReportSummary } from "./report.js"
 import type { ProbeResult } from "./types.js"
 
 const args = process.argv.slice(2)
-const flags = args.filter((a) => a.startsWith("-"))
-if (flags.length > 0) console.warn(`ignoring unknown flag(s): ${flags.join(" ")}`)
+
+/** `--name N` or `--name=N`; consumes its value from `rest`. */
+function numFlag(name: string, rest: string[], def: number): number {
+  const i = rest.findIndex((a) => a === name || a.startsWith(`${name}=`))
+  if (i === -1) return def
+  const [flag] = rest.splice(i, 1)
+  const raw = flag.includes("=") ? flag.split("=")[1] : rest.splice(i, 1)[0]
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`${name} needs a positive number, got: ${raw}`)
+    process.exit(1)
+  }
+  return n
+}
+
+const rest = [...args]
+// Starter plan allows 2 concurrent sandboxes; cap defensively above that.
+const concurrency = Math.min(8, Math.round(numFlag("--concurrency", rest, 1)))
+// Hard ceiling on Anthropic tokens for the whole batch — when the meter
+// crosses it, remaining repos are skipped, never silently reviewed on a
+// blown budget. GAUNTLET_MAX_TOKENS works too, for CI.
+const budgetTokens = numFlag(
+  "--budget-tokens",
+  rest,
+  Number(process.env.GAUNTLET_MAX_TOKENS) || Infinity,
+)
+
+const unknownFlags = rest.filter((a) => a.startsWith("-"))
+if (unknownFlags.length > 0) console.warn(`ignoring unknown flag(s): ${unknownFlags.join(" ")}`)
 
 let targets
 try {
-  targets = args.filter((a) => !a.startsWith("-")).map(parseRepoUrl)
+  targets = rest.filter((a) => !a.startsWith("-")).map(parseRepoUrl)
 } catch (err) {
   console.error(err instanceof Error ? err.message : String(err))
   process.exit(1)
@@ -103,20 +130,50 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
 }
 
 const summaries: ReportSummary[] = []
+const skippedForBudget: string[] = []
 let failures = 0
-for (const target of targets) {
-  try {
-    summaries.push(await review(target))
-  } catch (err) {
-    failures++
-    console.error(`  ✘ ${target.url}: ${err instanceof Error ? err.message : String(err)}`)
+const startedBatch = Date.now()
+const queue = [...targets]
+
+async function worker(): Promise<void> {
+  for (;;) {
+    const target = queue.shift()
+    if (!target) return
+    const spent = tokenUsage()
+    if (spent.input + spent.output >= budgetTokens) {
+      skippedForBudget.push(target.url)
+      continue
+    }
+    try {
+      summaries.push(await review(target))
+    } catch (err) {
+      failures++
+      console.error(`  ✘ ${target.url}: ${err instanceof Error ? err.message : String(err)}`)
+    }
   }
 }
+
+if (concurrency > 1)
+  console.log(`running ${targets.length} review(s), ${concurrency} at a time (logs interleave)`)
+await Promise.all(Array.from({ length: Math.min(concurrency, targets.length) }, worker))
 
 if (summaries.length > 1) {
   const index = await writeIndex("reports", summaries)
   console.log(`\nranked index → ${index}`)
 }
 
-// Any failed review is a nonzero exit — CI callers need to see partial failure.
-process.exit(failures > 0 ? 1 : 0)
+// The line a finance team actually wants to see.
+const total = tokenUsage()
+console.log(
+  `\nbatch: ${summaries.length} reviewed, ${failures} failed` +
+    (skippedForBudget.length > 0
+      ? `, ${skippedForBudget.length} skipped at the --budget-tokens ceiling`
+      : "") +
+    ` · ${Math.round((Date.now() - startedBatch) / 1000)}s · ${Math.round((total.input + total.output) / 1000)}k tokens` +
+    (Number.isFinite(budgetTokens) ? ` of ${Math.round(budgetTokens / 1000)}k budget` : ""),
+)
+for (const url of skippedForBudget) console.log(`  ⏸ skipped: ${url}`)
+
+// Any failed or budget-skipped review is a nonzero exit — CI callers need to
+// see partial completion.
+process.exit(failures > 0 || skippedForBudget.length > 0 ? 1 : 0)
