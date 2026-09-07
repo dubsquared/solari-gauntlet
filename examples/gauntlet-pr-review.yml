@@ -1,0 +1,15 @@
+# Drop this in .github/workflows/ of any repo: every PR gets a Gauntlet
+# review — built and probed in a Solari sandbox, scored by Claude, the full
+# evidence bundle attached as an artifact. Fails the check if the review
+# can't complete inside the token budget.
+name: gauntlet
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dubsquared/solari-gauntlet@main
+        with:
+          solari-api-key: ${{ secrets.SOLARI_API_KEY }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          budget-tokens: 50000

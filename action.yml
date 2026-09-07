@@ -1,0 +1,58 @@
+name: "Gauntlet Review"
+description: >-
+  Run an AI code review of any repo inside a Solari sandbox: build it, run its
+  tests, probe it with a cloud browser, and publish a scored report with
+  sealed evidence.
+branding:
+  icon: shield
+  color: orange
+inputs:
+  repos:
+    description: "Space-separated GitHub repo URLs to review. Defaults to the current repository at the current ref."
+    required: false
+    default: ""
+  solari-api-key:
+    description: "Solari API key (store as a secret)."
+    required: true
+  anthropic-api-key:
+    description: "Anthropic API key (store as a secret)."
+    required: true
+  budget-tokens:
+    description: "Hard token ceiling for the whole batch."
+    required: false
+    default: "150000"
+  concurrency:
+    description: "Parallel reviews (match your Solari plan's sandbox limit)."
+    required: false
+    default: "1"
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: dubsquared/solari-gauntlet
+        path: .gauntlet
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - shell: bash
+      working-directory: .gauntlet
+      run: npm ci
+    - shell: bash
+      working-directory: .gauntlet
+      env:
+        SOLARI_API_KEY: ${{ inputs.solari-api-key }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+      run: |
+        REPOS="${{ inputs.repos }}"
+        if [ -z "$REPOS" ]; then
+          # On pull_request events review the PR's head branch; else the ref.
+          REPOS="https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+        fi
+        npm start -- --concurrency "${{ inputs.concurrency }}" \
+          --budget-tokens "${{ inputs.budget-tokens }}" $REPOS
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: gauntlet-reports
+        path: .gauntlet/reports/
