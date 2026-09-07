@@ -2,9 +2,9 @@
 
 🟢 **IMPROVEMENT** · Added rel attribute to external link for security.
 
-`main` @ bf7d481 → `sreejadandu-patch-1` @ c3e3de8 · 96s · ~4k tokens · advisory, not a merge gate
+`main` @ bf7d481 → `sreejadandu-patch-1` @ c3e3de8 · 95s · ~4k tokens · advisory, not a merge gate
 
-This PR adds rel="noopener noreferrer" and target="_blank" to an external link pointing to the Mozilla Manifesto page in a simple static HTML file. The change is minimal, isolated to a single line, and the deterministic delta table confirms no regressions: build still succeeds, no new console errors, no hostile leaks, and the probe still passes. The small increase in loadMs (121 to 162) is negligible and likely noise given the trivial nature of the change. This is a small, well-targeted security/best-practice improvement with no observed downsides.
+This PR adds rel="noopener noreferrer" and target="_blank" to the external Mozilla Manifesto link in index.html. This is a minor, low-risk change that improves security by preventing the new page from accessing window.opener, and opens the link in a new tab per common practice for external links. Deterministic metrics show no meaningful behavioral regression (load time and console errors essentially unchanged, build still passes).
 
 ## Measured, not claimed
 
@@ -12,18 +12,18 @@ This PR adds rel="noopener noreferrer" and target="_blank" to an external link p
 | --- | --- | --- |
 | Build | ✅ | ✅ |
 | Own tests | none found | none found |
-| Landing DOM load | 121ms | 162ms |
+| Landing DOM load | 124ms | 127ms |
 | Console errors | 2 | 2 |
 | Stack-trace leaks under hostile input | 0 | 0 |
 | Live probe | ✅ | ✅ |
 
 ## Improvements
-- Adding rel="noopener noreferrer" to an external link with target="_blank" prevents potential reverse tabnabbing attacks, a recognized security best practice.
-- target="_blank" improves UX by opening external links in a new tab, keeping the main site open.
+- External link now uses rel="noopener noreferrer" mitigating potential reverse tabnabbing security risk
+- target="_blank" added so external link opens in a new tab, a common UX practice
 
 ## Concerns
-- The loadMs increased from 121 to 162, though this is likely noise given the trivial single-attribute change and no other observable behavioral difference.
-- No functional tests exist for this repo (testsPass is null), so verification relies solely on manual diff review and basic probes.
+- Very small, single-line change with minimal impact on a static beginner tutorial site; unlikely to be a meaningful security fix but not harmful
+- No tests exist to verify behavior beyond manual diff review
 
 ### base — what the cloud browser saw
 

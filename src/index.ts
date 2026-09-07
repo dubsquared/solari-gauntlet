@@ -40,7 +40,17 @@ function numFlag(name: string, rest: string[], def: number): number {
   return n
 }
 
+/** Presence flag: removes it from `rest` and returns whether it was there. */
+function boolFlag(name: string, rest: string[]): boolean {
+  const i = rest.indexOf(name)
+  if (i === -1) return false
+  rest.splice(i, 1)
+  return true
+}
+
 const rest = [...args]
+const prComment = boolFlag("--pr-comment", rest)
+const dryRunComment = boolFlag("--dry-run-comment", rest)
 // Starter plan allows 2 concurrent sandboxes; cap defensively above that.
 const concurrency = Math.min(8, Math.round(numFlag("--concurrency", rest, 1)))
 // Hard ceiling on Anthropic tokens for the whole batch — when the meter
@@ -177,7 +187,7 @@ for (const prt of prTargets) {
     continue
   }
   try {
-    await reviewPr(pt, prt)
+    await reviewPr(pt, prt, { comment: prComment, dryRunComment })
   } catch (err) {
     failures++
     console.error(

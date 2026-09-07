@@ -176,10 +176,16 @@ Shipped since the focus group:
   CodeRabbit) can produce. Wire it to PRs with the
   [example workflow](examples/gauntlet-pr-review.yml).
 
+- **Self-updating PR comment** — with `--pr-comment` (or `pr-comment: true`
+  in the Action), the behavioral-diff verdict is posted as one sticky comment
+  on the PR, keyed by a hidden marker so it edits itself on each push instead
+  of spamming the thread. `--dry-run-comment` renders it to stdout without
+  posting. Needs a `GITHUB_TOKEN` with pull-request write.
+
 Still on the roadmap:
 
-- **Check Run + one self-updating PR comment** — the delivery vehicle so the
-  diff review lands in the PR instead of an artifact.
+- **GitHub Check Run** — the diff verdict as a first-class check with a
+  neutral-by-default conclusion (advisory, survives rollout politics).
 - **Snapshot-warmed environments** — first green build of a repo becomes a
   Solari snapshot keyed by lockfile hash; later reviews boot from it in ~1s
   with dependencies hot. Cuts sandbox minutes per review to a predictable

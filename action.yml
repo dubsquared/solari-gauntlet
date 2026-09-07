@@ -25,6 +25,14 @@ inputs:
     description: "Parallel reviews (match your Solari plan's sandbox limit)."
     required: false
     default: "1"
+  pr-comment:
+    description: "For PR-URL targets, post/update a sticky verdict comment on the PR."
+    required: false
+    default: "false"
+  github-token:
+    description: "Token with pull-request write, for --pr-comment. Defaults to the workflow token."
+    required: false
+    default: ${{ github.token }}
 runs:
   using: composite
   steps:
@@ -43,14 +51,21 @@ runs:
       env:
         SOLARI_API_KEY: ${{ inputs.solari-api-key }}
         ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         REPOS="${{ inputs.repos }}"
+        COMMENT=""
         if [ -z "$REPOS" ]; then
-          # On pull_request events review the PR's head branch; else the ref.
-          REPOS="https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          if [ -n "${GITHUB_EVENT_NAME}" ] && [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            # Behavioral-diff the PR itself, and post the verdict in the thread.
+            REPOS="https://github.com/${GITHUB_REPOSITORY}/pull/$(jq -r .number "$GITHUB_EVENT_PATH")"
+            [ "${{ inputs.pr-comment }}" = "true" ] && COMMENT="--pr-comment"
+          else
+            REPOS="https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}"
+          fi
         fi
         npm start -- --concurrency "${{ inputs.concurrency }}" \
-          --budget-tokens "${{ inputs.budget-tokens }}" $REPOS
+          --budget-tokens "${{ inputs.budget-tokens }}" $COMMENT $REPOS
     - uses: actions/upload-artifact@v4
       if: always()
       with:

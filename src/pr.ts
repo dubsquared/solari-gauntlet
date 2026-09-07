@@ -98,9 +98,17 @@ function evidence(
   }
 }
 
+export interface PrOptions {
+  /** Post/update the sticky PR comment (needs GITHUB_TOKEN). */
+  comment?: boolean
+  /** Render the comment to stdout instead of posting it. */
+  dryRunComment?: boolean
+}
+
 export async function reviewPr(
   pt: SolariClient,
   t: PrTarget,
+  opts: PrOptions = {},
 ): Promise<{ assessment: DiffVerdict["assessment"]; path: string }> {
   const pr = await fetchPrMeta(t)
   console.log(
@@ -159,6 +167,21 @@ export async function reviewPr(
     }
     const path = await writePrReport(reportDir, t, pr, sides, verdict, sideProbe, sweep.secretHits, cost)
     console.log(`  ✔ ${verdict.assessment.toUpperCase()} → ${path}`)
+
+    if (opts.comment || opts.dryRunComment) {
+      const body = renderPrComment(t, pr, sides, verdict)
+      if (opts.dryRunComment) {
+        console.log(`\n─── PR comment (dry run, not posted) ───\n${body}\n───────────────────────────────────────`)
+      } else {
+        const token = process.env.GITHUB_TOKEN
+        if (!token) {
+          console.error("  ✘ --pr-comment needs GITHUB_TOKEN (pull-request write)")
+        } else {
+          const r = await postPrComment(t, body, token)
+          console.log(`  💬 comment ${r.action}: ${r.url}`)
+        }
+      }
+    }
     return { assessment: verdict.assessment, path }
   } finally {
     await sandbox.kill().catch(() => {})
@@ -166,6 +189,83 @@ export async function reviewPr(
 }
 
 const icon = { improvement: "🟢", regression: "🔴", neutral: "⚪", mixed: "🟡" } as const
+
+const COMMENT_MARKER = "<!-- gauntlet:pr-review -->"
+
+/** Render the delta into a compact PR comment body. */
+export function renderPrComment(
+  t: PrTarget,
+  pr: PrMeta,
+  sides: SideEvidence[],
+  verdict: DiffVerdict,
+): string {
+  const [b, h] = sides
+  const cell = (f: (s: SideEvidence) => unknown): string => {
+    const bv = f(b)
+    const hv = f(h)
+    const arrow = String(bv) !== String(hv) ? " ⟶" : ""
+    return `${bv ?? "–"} → ${hv ?? "–"}${arrow}`
+  }
+  const bullets = (title: string, xs: string[]): string =>
+    xs.length ? `\n**${title}**\n${xs.map((x) => `- ${sanitize(x)}`).join("\n")}\n` : ""
+  return `${COMMENT_MARKER}
+### ${icon[verdict.assessment]} Gauntlet — ${verdict.assessment.toUpperCase()}
+
+${sanitize(verdict.summary)}
+
+| behavior (base → head) | |
+| --- | --- |
+| build | ${cell((s) => (s.buildOk ? "✅" : "❌"))} |
+| own tests | ${cell((s) => (s.testsPass === null ? "none" : s.testsPass ? "PASS" : "FAIL"))} |
+| landing load (ms) | ${cell((s) => s.loadMs)} |
+| console errors | ${cell((s) => s.consoleErrors)} |
+| stack-trace leaks | ${cell((s) => s.hostileLeaks)} |
+${bullets("Improvements", verdict.improvements)}${bullets("Regressions", verdict.regressions)}${bullets("Concerns", verdict.concerns)}
+<sub>Both sides ran live in one disposable Solari sandbox; browser evidence is a real Chromium on a public preview URL. Advisory, not a merge gate · reviewed head \`${pr.headSha.slice(0, 7)}\`. Posted by [Gauntlet](https://github.com/dubsquared/solari-gauntlet).</sub>`
+}
+
+/**
+ * Upsert one sticky comment on the PR: edit the existing Gauntlet comment if
+ * present (keyed by the hidden marker), else create it. Needs GITHUB_TOKEN
+ * with pull-request write. Never posts more than one comment per PR.
+ */
+export async function postPrComment(
+  t: PrTarget,
+  body: string,
+  token: string,
+): Promise<{ action: "created" | "updated"; url: string }> {
+  const api = `https://api.github.com/repos/${t.owner}/${t.repo}`
+  const headers = {
+    accept: "application/vnd.github+json",
+    authorization: `Bearer ${token}`,
+    "x-github-api-version": "2022-11-28",
+    "content-type": "application/json",
+  }
+  const list = await fetch(`${api}/issues/${t.number}/comments?per_page=100`, {
+    headers,
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!list.ok) throw new Error(`GitHub API ${list.status} listing comments`)
+  const existing = ((await list.json()) as Array<{ id: number; body: string; html_url: string }>).find(
+    (c) => c.body.includes(COMMENT_MARKER),
+  )
+  const res = existing
+    ? await fetch(`${api}/issues/comments/${existing.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ body }),
+        signal: AbortSignal.timeout(15_000),
+      })
+    : await fetch(`${api}/issues/${t.number}/comments`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ body }),
+        signal: AbortSignal.timeout(15_000),
+      })
+  if (!res.ok) throw new Error(`GitHub API ${res.status} ${existing ? "updating" : "posting"} comment`)
+  const json = (await res.json()) as { html_url: string }
+  return { action: existing ? "updated" : "created", url: json.html_url }
+}
 
 async function writePrReport(
   reportDir: string,
