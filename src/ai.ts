@@ -2,9 +2,12 @@
 import Anthropic from "@anthropic-ai/sdk"
 
 import type {
+  DiffVerdict,
+  PrMeta,
   ProbeResult,
   RunPlan,
   SecuritySweep,
+  SideEvidence,
   StepResult,
   TestRun,
   Verdict,
@@ -246,6 +249,64 @@ ${JSON.stringify({ ...probe, pageText: undefined, consoleErrors: undefined }, nu
 pageText: ${UNTRUSTED_OPEN}${probe.pageText?.slice(0, 3000) ?? ""}${UNTRUSTED_CLOSE}
 consoleErrors: ${UNTRUSTED_OPEN}${probe.consoleErrors.join("\n").slice(0, 1500)}${UNTRUSTED_CLOSE}`
   return askJson(VERDICT_SYSTEM, user, validateVerdict)
+}
+
+const DIFF_SYSTEM = `You are reviewing a PULL REQUEST by comparing what its base and head
+commits actually DID when both were built, tested, and probed live in a sandbox.
+The deterministic delta table is ground truth — your job is to interpret it and
+the diff, not to re-measure it. Judge only evidence you can see; a PR
+description's claims earn nothing unless the observed behavior backs them.
+${UNTRUSTED_RULES}
+assessment: "improvement" (head observably better), "regression" (worse),
+"neutral" (no meaningful behavioral change), "mixed" (both).
+Reply with ONLY a JSON object:
+{
+  "assessment": "improvement" | "regression" | "neutral" | "mixed",
+  "summary": "3-4 sentences: what this PR actually changes in behavior",
+  "improvements": ["...", ...],
+  "regressions": ["...", ...],
+  "concerns": ["...", ...]
+}`
+
+function validateDiffVerdict(raw: unknown): DiffVerdict {
+  const v = raw as Partial<DiffVerdict>
+  const strings = (a: unknown): string[] =>
+    Array.isArray(a) ? a.filter((s) => typeof s === "string").slice(0, 10) : []
+  const assessments = ["improvement", "regression", "neutral", "mixed"] as const
+  return {
+    assessment: assessments.includes(v.assessment as (typeof assessments)[number])
+      ? (v.assessment as DiffVerdict["assessment"])
+      : "mixed",
+    summary: String(v.summary ?? "(no summary returned)"),
+    improvements: strings(v.improvements),
+    regressions: strings(v.regressions),
+    concerns: strings(v.concerns),
+  }
+}
+
+export async function writeDiffVerdict(
+  pr: PrMeta,
+  context: string,
+  sides: SideEvidence[],
+  diffStat: string,
+  diffHunks: string,
+): Promise<DiffVerdict> {
+  const user = `PR #${pr.number}: ${UNTRUSTED_OPEN}${pr.title}${UNTRUSTED_CLOSE}
+PR description: ${UNTRUSTED_OPEN}${pr.body.slice(0, 2000)}${UNTRUSTED_CLOSE}
+base ${pr.baseRef} @ ${pr.baseSha.slice(0, 7)} → head ${pr.headRef} @ ${pr.headSha.slice(0, 7)}
+
+Deterministic delta table (measured, not claimed):
+${JSON.stringify(sides, null, 2)}
+
+Diff stat:
+${UNTRUSTED_OPEN}${diffStat.slice(0, 2000)}${UNTRUSTED_CLOSE}
+
+Diff hunks (capped):
+${UNTRUSTED_OPEN}${diffHunks.slice(0, 12000)}${UNTRUSTED_CLOSE}
+
+Repo context (from base):
+${context.slice(0, 6000)}`
+  return askJson(DIFF_SYSTEM, user, validateDiffVerdict)
 }
 
 /** Rolling Anthropic token usage for this process — cost accounting per review. */

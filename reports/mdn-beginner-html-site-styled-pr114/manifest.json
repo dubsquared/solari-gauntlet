@@ -1,0 +1,18 @@
+{
+  "repoUrl": "https://github.com/mdn/beginner-html-site-styled/pull/114",
+  "reviewedCommit": "c3e3de8",
+  "sealedAt": "2026-09-07T23:06:06.996Z",
+  "sha256": {
+    "base/screenshot-mobile.png": "5a82829b9a7ae1dc75222066f6b3eaa2c92f67fe074b1df5111866eab20ac729",
+    "base/screenshot.png": "7251094bee202f9a422022541adc7889975d1659541ea2f8c54c8c9a983f37a3",
+    "head/screenshot-mobile.png": "5a82829b9a7ae1dc75222066f6b3eaa2c92f67fe074b1df5111866eab20ac729",
+    "head/screenshot.png": "7251094bee202f9a422022541adc7889975d1659541ea2f8c54c8c9a983f37a3",
+    "report.md": "d715cd9b38663214acacadfafc7d706c2963fef2cbf306920efafbeaf3ca4d50",
+    "verdict.json": "71f6a6e3e4892ba23278ddffcee59d82fa0cf4f74968993ff890ddb2ba1bcf7a"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "l1eFcFowkgmcMgNtM9GzUPItSDtr7laXVCwzKjUhSVqdSwIFr7NPI8wwIw60RG8q7fz9FpRuvXaA3gi7aMpsBQ=="
+  }
+}

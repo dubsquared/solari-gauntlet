@@ -164,13 +164,22 @@ Batch controls, tuned for a finance sign-off:
 
 ## Roadmap (from two multi-persona design reviews and a focus group)
 
-The next headline, per a six-persona focus group's near-unanimous vote:
+Shipped since the focus group:
 
-- **PR mode: behavioral diff review** — clone once, run base *and* head in
-  one sandbox, and review the *delta*: tests that flipped, load time that
-  regressed, a failure-mode probe that went from clean-404 to stack-trace
-  leak, before/after screenshots and replays. No static reviewer can produce
-  that evidence. Delivered as a Check Run + one self-updating PR comment.
+- **PR behavioral-diff mode** — give it a pull-request URL
+  (`.../pull/123`) and it clones once, fetches both sides (fork-safe), runs
+  base *and* head in one sandbox, and reviews the *delta*: a table of build
+  status, tests that flipped, load time, console errors, and stack-trace
+  leaks — measured, not claimed — plus a Claude assessment of
+  improvement / regression / neutral / mixed and before/after
+  screenshots and replays. Evidence no static reviewer (Copilot,
+  CodeRabbit) can produce. Wire it to PRs with the
+  [example workflow](examples/gauntlet-pr-review.yml).
+
+Still on the roadmap:
+
+- **Check Run + one self-updating PR comment** — the delivery vehicle so the
+  diff review lands in the PR instead of an artifact.
 - **Snapshot-warmed environments** — first green build of a repo becomes a
   Solari snapshot keyed by lockfile hash; later reviews boot from it in ~1s
   with dependencies hot. Cuts sandbox minutes per review to a predictable

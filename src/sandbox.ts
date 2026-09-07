@@ -226,9 +226,12 @@ export async function buildAndRun(
         // Background the server, then verify it survived its first seconds —
         // otherwise a crash-on-boot reports exit 0 here and the self-healing
         // loop never fires on the one path the tool exists for.
+        // setsid puts the server in its own process group, so the whole tree
+        // (wrapper + the real server child) can be reaped by group later —
+        // killing just $! would orphan the child and leave the port held.
         const launch = await sh(
           sandbox,
-          `cd ${workDir} && nohup sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & ` +
+          `cd ${workDir} && setsid sh -c '${plan.run.replaceAll("'", "'\\''")}' >/tmp/app.log 2>&1 & ` +
             `echo $! >/tmp/app.pid; sleep 4; kill -0 "$(cat /tmp/app.pid)" 2>/dev/null`,
         )
         if (launch.exitCode === 0) {

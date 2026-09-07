@@ -20,6 +20,7 @@ import {
   parseRepoUrl,
   securitySweep,
 } from "./sandbox.js"
+import { parsePrUrl, reviewPr, type PrTarget } from "./pr.js"
 import { writeIndex, writeReport, type ReportSummary } from "./report.js"
 import type { ProbeResult } from "./types.js"
 
@@ -54,15 +55,20 @@ const budgetTokens = numFlag(
 const unknownFlags = rest.filter((a) => a.startsWith("-"))
 if (unknownFlags.length > 0) console.warn(`ignoring unknown flag(s): ${unknownFlags.join(" ")}`)
 
-let targets
+let targets: ReturnType<typeof parseRepoUrl>[] = []
+const prTargets: PrTarget[] = []
 try {
-  targets = rest.filter((a) => !a.startsWith("-")).map(parseRepoUrl)
+  for (const a of rest.filter((x) => !x.startsWith("-"))) {
+    const pr = parsePrUrl(a)
+    if (pr) prTargets.push(pr)
+    else targets.push(parseRepoUrl(a))
+  }
 } catch (err) {
   console.error(err instanceof Error ? err.message : String(err))
   process.exit(1)
 }
-if (targets.length === 0) {
-  console.error("usage: gauntlet <github-repo-url> [more urls...]")
+if (targets.length + prTargets.length === 0) {
+  console.error("usage: gauntlet <github-repo-or-pr-url> [more urls...]")
   process.exit(1)
 }
 for (const key of ["SOLARI_API_KEY", "ANTHROPIC_API_KEY"]) {
@@ -161,6 +167,24 @@ async function worker(): Promise<void> {
 if (concurrency > 1)
   console.log(`running ${targets.length} review(s), ${concurrency} at a time (logs interleave)`)
 await Promise.all(Array.from({ length: Math.min(concurrency, targets.length) }, worker))
+
+// PR behavioral-diff reviews run after repo reviews, sequentially — each one
+// occupies a sandbox for both sides of the diff.
+for (const prt of prTargets) {
+  const spent = tokenUsage()
+  if (spent.input + spent.output >= budgetTokens) {
+    skippedForBudget.push(`PR ${prt.owner}/${prt.repo}#${prt.number}`)
+    continue
+  }
+  try {
+    await reviewPr(pt, prt)
+  } catch (err) {
+    failures++
+    console.error(
+      `  ✘ ${prt.owner}/${prt.repo}#${prt.number}: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
 
 if (summaries.length > 1) {
   const index = await writeIndex("reports", summaries)

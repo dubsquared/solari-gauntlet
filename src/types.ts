@@ -77,6 +77,39 @@ export interface HostileCheck {
   leakedTrace: boolean
 }
 
+/** A pull request resolved via the GitHub API. */
+export interface PrMeta {
+  number: number
+  title: string
+  body: string
+  baseRef: string
+  baseSha: string
+  headRef: string
+  headSha: string
+  /** Clone URL of the head repo — differs from base when the PR is from a fork. */
+  headCloneUrl: string
+}
+
+/** What one side (base or head) of a PR did when actually run. */
+export interface SideEvidence {
+  label: "base" | "head"
+  sha: string
+  buildOk: boolean
+  testsPass: boolean | null
+  loadMs: number | null
+  consoleErrors: number
+  hostileLeaks: number
+  probeOk: boolean
+}
+
+export interface DiffVerdict {
+  assessment: "improvement" | "regression" | "neutral" | "mixed"
+  summary: string
+  improvements: string[]
+  regressions: string[]
+  concerns: string[]
+}
+
 export interface Verdict {
   /** 0–10. Does it start and stay up? */
   runs: number

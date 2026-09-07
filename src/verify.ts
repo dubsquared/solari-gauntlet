@@ -5,10 +5,11 @@
  * when the evidence is byte-identical to what was reviewed and signed.
  */
 import { createHash } from "node:crypto"
-import { readdir, readFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { verifySignature } from "./attest.js"
+import { walkArtifacts } from "./report.js"
 
 const dir = process.argv[2]
 if (!dir) {
@@ -32,8 +33,8 @@ for (const [file, expected] of Object.entries(manifest.sha256 as Record<string, 
     failures++
   }
 }
-for (const f of await readdir(dir)) {
-  if (f !== "manifest.json" && f !== "context.txt" && !(f in manifest.sha256)) {
+for (const f of await walkArtifacts(dir)) {
+  if (!(f in manifest.sha256)) {
     console.error(`  ✘ ${f}: not in manifest — added after sealing`)
     failures++
   }
