@@ -91,7 +91,12 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
     const context = await gatherContext(sandbox, url, workDir)
     await saveRawContext(reportDir, context)
 
-    const executed = await buildAndRun(sandbox, context, workDir)
+    // Circuit breaker: one review can never spend more than this on replans.
+    const perReviewCap = Number(process.env.GAUNTLET_MAX_TOKENS_PER_REVIEW) || 40_000
+    const executed = await buildAndRun(sandbox, context, workDir, () => {
+      const now = tokenUsage()
+      return now.input + now.output - tokensBefore.input - tokensBefore.output < perReviewCap
+    })
 
     let probe: ProbeResult
     if (executed.plan.kind === "web") {

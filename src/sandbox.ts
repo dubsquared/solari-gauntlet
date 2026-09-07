@@ -187,7 +187,13 @@ export async function securitySweep(sandbox: Sandbox, workDir: string): Promise<
  * Plan → execute → on failure, feed the error back and replan. The loop that
  * makes this an agent instead of a script.
  */
-export async function buildAndRun(sandbox: Sandbox, context: string, workDir: string): Promise<ExecutedPlan> {
+export async function buildAndRun(
+  sandbox: Sandbox,
+  context: string,
+  workDir: string,
+  /** Per-review token circuit breaker: false stops further replan spend. */
+  canSpendMore: () => boolean = () => true,
+): Promise<ExecutedPlan> {
   const priorPlans: RunPlan[] = []
   let plan = await planRun(context)
   const steps: StepResult[] = []
@@ -244,6 +250,10 @@ export async function buildAndRun(sandbox: Sandbox, context: string, workDir: st
     }
 
     if (attempt === MAX_PLAN_ATTEMPTS) break
+    if (!canSpendMore()) {
+      console.log("    ⏸ per-review token cap reached — no further replans")
+      break
+    }
     priorPlans.push(plan)
     plan = await revisePlan(context, [...priorPlans], failed)
   }

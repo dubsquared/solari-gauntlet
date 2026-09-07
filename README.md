@@ -94,8 +94,19 @@ Beyond run-and-screenshot, every review also:
 - **generates three interview questions** grounded in the specific code —
   built to distinguish "wrote it and understands it" from "generated it and
   shipped";
-- **accounts for itself**: wall time and token spend on every report, and a
-  machine-readable `verdict.json` beside every `report.md`.
+- **accounts for itself**: wall time and token spend on every report,
+  machine-readable `verdict.json` and `invoice.json` beside every
+  `report.md`, a per-review token circuit breaker, and an append-only
+  `reports/ledger.ndjson` tracking every repo's score, load time, and test
+  status across re-reviews;
+- **ships a shareable report card**: a self-contained `report.html` per
+  review — scores, evidence, screenshots, and the **session replay embedded
+  with a player**. Send one file; the whole review travels with it;
+- **signs its verdicts**: the evidence manifest is ed25519-signed, and
+  `npm run verify -- reports/<slug>` recomputes every hash and validates the
+  signature. Inflate a score by one point and verification fails loudly;
+- **shows the redemption arc**: re-reviewing a repo prints the score delta
+  (▲/▼ vs last time) in the report, the card, and the ledger.
 
 Three things make it an agent rather than a script:
 
@@ -151,10 +162,23 @@ Batch controls, tuned for a finance sign-off:
 
 | Session recording | The probe's full DOM-level replay, committed as audit evidence |
 
-## Roadmap (from a seven-persona design review)
+## Roadmap (from two multi-persona design reviews and a focus group)
 
-Ranked by demand across principal-engineer / CTO / CISO / SRE / QA /
-hiring-manager / DevEx personas:
+The next headline, per a six-persona focus group's near-unanimous vote:
+
+- **PR mode: behavioral diff review** — clone once, run base *and* head in
+  one sandbox, and review the *delta*: tests that flipped, load time that
+  regressed, a failure-mode probe that went from clean-404 to stack-trace
+  leak, before/after screenshots and replays. No static reviewer can produce
+  that evidence. Delivered as a Check Run + one self-updating PR comment.
+- **Snapshot-warmed environments** — first green build of a repo becomes a
+  Solari snapshot keyed by lockfile hash; later reviews boot from it in ~1s
+  with dependencies hot. Cuts sandbox minutes per review to a predictable
+  floor, which is what a tooling budget line item requires.
+- **Watch mode / Gauntlet Arena** — a standing reviewer with a public,
+  self-updating scoreboard of report cards.
+
+Ranked by demand across the earlier stakeholder panel:
 
 - **Failure-mode probe** — POST malformed JSON, request missing routes, send
   oversized bodies; record status codes and stack-trace leaks. "Does it

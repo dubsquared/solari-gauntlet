@@ -1,38 +1,44 @@
 # Gauntlet review — https://github.com/heroku/node-js-getting-started.git
 
-**19/30** · reviewed 2026-09-07 at `7233aca` · ran as `web` · 72s · ~14k tokens
+**18/30** (▼ was 19/30) · reviewed 2026-09-07 at `7233aca` · ran as `web` · 74s · ~10k tokens
 
 | Dimension | Score | |
 | --- | --- | --- |
 | Runs | 8/10 | `████████░░` |
 | Delivers its claims | 6/10 | `██████░░░░` |
-| Code quality | 5/10 | `█████░░░░░` |
+| Code quality | 4/10 | `████░░░░░░` |
 
-The submission runs and serves the expected static/EJS page, and its bundled test suite passes, but the codebase appears to be the stock Heroku getting-started template with no visible custom feature work — the db.ejs view suggests intended database functionality that is neither wired up nor demonstrated. Given the shallow scope of what was actually exercised (a single static route), this should be scored as a minimally-functional boilerplate rather than a substantive engineering deliverable.
+This submission runs cleanly and the live probe matches the barebones claims in the README, but the codebase is essentially the stock Heroku Node.js starter template with no visible custom functionality added for the hiring challenge. The unused db.ejs view and the engine-version mismatch suggest incomplete customization or lack of attention to the manifest. As evidence of engineering skill for a hiring decision, this is thin — it demonstrates the app can be run but not that the candidate built anything substantial beyond the provided scaffold.
 
 ## Strengths
-- App started cleanly, served the index page as advertised, and jest test suite (IPv4/IPv6 bind tests) passed
-- Graceful SIGTERM handling and keepAliveTimeout tuning show awareness of Heroku's router behavior
-- 404s returned cleanly for unknown routes and malformed POSTs with no stack trace leakage
+- npm install, npm start, and npm test all completed successfully with exit code 0
+- Live probe confirms the app renders the expected homepage content and handles a nonexistent route with a clean 404 (no stack trace leak)
+- Graceful SIGTERM handling and keep-alive timeout tuning show awareness of Heroku's dyno lifecycle
+- Security sweep found no vulnerabilities or leaked secrets
 
 ## Concerns
-- This repo is effectively an unmodified clone of heroku/node-js-getting-started boilerplate — no evidence of original candidate work beyond the stock starter, which is a red flag for a hiring challenge submission
-- views/pages/db.ejs exists in the tree but index.js only defines a single '/' route — no /db route was shown or exercised, so the Postgres-related functionality implied by the view is unverified or dead
-- package.json requires node 22.x+ but the environment ran node 18.20.4, producing EBADENGINE warnings; it happened to still work, but engine constraints weren't actually satisfied
-- Source excerpt is very thin (one file, single route) — insufficient to judge error handling, modularity, or any substantive business logic beyond the boilerplate
+- The repository is essentially the unmodified Heroku 'nodejs-getting-started' boilerplate — index.js only implements a single static '/' route with no custom business logic, so there is little original engineering to evaluate
+- views/pages/db.ejs exists in the tree but no /db route or database integration appears in index.js, suggesting an incomplete or copy-pasted scaffold rather than a working feature
+- package.json declares node 22.x/24.x/26.x but the app was actually run on node 18.20.4, triggering EBADENGINE warnings — indicates the manifest wasn't validated against the actual run environment
+- No custom error-handling middleware, input validation, or additional endpoints are present to demonstrate defensive coding beyond Express/EJS defaults
+- test.js only checks IPv4/IPv6 binding and a 200 on '/', not deep functional coverage, and appears to be the stock template test rather than added by the candidate
 
 ## How it was run
-> Simple Express app with no external services/DB dependency required for the main route; binds to PORT env var which we set to 3000.
+> Simple Express/EJS app, no DB or credentials required; binds to PORT env var (defaults 5006), overridden to 3000.
 
 ```console
 $ cd /home/user/repo && npm install   # exit 0
-$ PORT=3000 node index.js   # exit 0
+$ PORT=3000 npm start   # exit 0
 ```
 
 ## The submission's own tests
-`npx jest --ci` → **PASS**
+`npm test` → **PASS**
 
 ```
+
+> test
+> jest
+
   console.log
     Listening on 5006
 
@@ -55,13 +61,13 @@ $ PORT=3000 node index.js   # exit 0
 
 PASS ./test.js
   getting started guide
-    ✓ should bind to IPv4 and respond to GET / (530 ms)
-    ✓ should bind to IPv6 and respond to GET / (520 ms)
+    ✓ should bind to IPv4 and respond to GET / (1260 ms)
+    ✓ should bind to IPv6 and respond to GET / (525 ms)
 
 Test Suites: 1 passed, 1 total
 Tests:       2 passed, 2 total
 Snapshots:   0 total
-Time:        1.477 s
+Time:        2.207 s
 Ran all test suites.
 
 ```
@@ -71,10 +77,10 @@ Ran all test suites.
 - secret patterns: no matches
 
 ## Live probe
-Opened `https://4149d3f870d480556491-3000.preview.getsolari.com` in a Solari cloud browser.
+Opened `https://19b289dffc1eed318402-3000.preview.getsolari.com` in a Solari cloud browser.
 
 - title: "Node.js Getting Started on Heroku"
-- landing page DOM loaded in 181ms
+- landing page DOM loaded in 197ms
 - console errors: none
 
 ### Failure-mode probe
@@ -90,11 +96,11 @@ How the app answers hostile requests — clean 4xx beats a stack trace:
 ![mobile](screenshot-mobile.png)
 
 ## Ask the candidate
-1. The tree includes views/pages/db.ejs but index.js only defines the root route — what was this view meant to do, and why isn't it wired up or tested?
-2. You pinned engines to node 22.x/24.x/26.x yet the app ran fine on node 18 with EBADENGINE warnings — how would you actually enforce or verify engine compatibility in CI?
-3. Walk me through what, if anything, in this repository is your own work versus the Heroku starter template — what would you add to make this genuinely demonstrate the challenge's requirements?
+1. The repo includes views/pages/db.ejs but index.js has no route serving it — what was this meant to do, and why was it left disconnected?
+2. package.json requires Node 22.x-26.x yet you ran (and presumably tested) on Node 18.20.4 — how did you validate engine compatibility before submitting?
+3. Beyond the single static '/' route, what part of this application did you write or modify yourself versus what came from the Heroku template, and can you walk through those specific changes?
 
 ---
 Evidence sealed: [`manifest.json`](manifest.json) carries a SHA-256 for every
-artifact in this directory. If a byte of evidence changes after review,
-the manifest says so.
+artifact in this directory, ed25519-signed. `npm run verify -- <this dir>`
+proves nothing changed since the review.

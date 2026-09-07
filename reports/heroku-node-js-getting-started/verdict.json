@@ -1,32 +1,34 @@
 {
   "repoUrl": "https://github.com/heroku/node-js-getting-started.git",
   "commit": "7233aca",
-  "total": 19,
+  "total": 18,
   "flagged": false,
   "verdict": {
     "runs": 8,
     "deliversClaims": 6,
-    "codeQuality": 5,
+    "codeQuality": 4,
     "strengths": [
-      "App started cleanly, served the index page as advertised, and jest test suite (IPv4/IPv6 bind tests) passed",
-      "Graceful SIGTERM handling and keepAliveTimeout tuning show awareness of Heroku's router behavior",
-      "404s returned cleanly for unknown routes and malformed POSTs with no stack trace leakage"
+      "npm install, npm start, and npm test all completed successfully with exit code 0",
+      "Live probe confirms the app renders the expected homepage content and handles a nonexistent route with a clean 404 (no stack trace leak)",
+      "Graceful SIGTERM handling and keep-alive timeout tuning show awareness of Heroku's dyno lifecycle",
+      "Security sweep found no vulnerabilities or leaked secrets"
     ],
     "concerns": [
-      "This repo is effectively an unmodified clone of heroku/node-js-getting-started boilerplate — no evidence of original candidate work beyond the stock starter, which is a red flag for a hiring challenge submission",
-      "views/pages/db.ejs exists in the tree but index.js only defines a single '/' route — no /db route was shown or exercised, so the Postgres-related functionality implied by the view is unverified or dead",
-      "package.json requires node 22.x+ but the environment ran node 18.20.4, producing EBADENGINE warnings; it happened to still work, but engine constraints weren't actually satisfied",
-      "Source excerpt is very thin (one file, single route) — insufficient to judge error handling, modularity, or any substantive business logic beyond the boilerplate"
+      "The repository is essentially the unmodified Heroku 'nodejs-getting-started' boilerplate — index.js only implements a single static '/' route with no custom business logic, so there is little original engineering to evaluate",
+      "views/pages/db.ejs exists in the tree but no /db route or database integration appears in index.js, suggesting an incomplete or copy-pasted scaffold rather than a working feature",
+      "package.json declares node 22.x/24.x/26.x but the app was actually run on node 18.20.4, triggering EBADENGINE warnings — indicates the manifest wasn't validated against the actual run environment",
+      "No custom error-handling middleware, input validation, or additional endpoints are present to demonstrate defensive coding beyond Express/EJS defaults",
+      "test.js only checks IPv4/IPv6 binding and a 200 on '/', not deep functional coverage, and appears to be the stock template test rather than added by the candidate"
     ],
-    "summary": "The submission runs and serves the expected static/EJS page, and its bundled test suite passes, but the codebase appears to be the stock Heroku getting-started template with no visible custom feature work — the db.ejs view suggests intended database functionality that is neither wired up nor demonstrated. Given the shallow scope of what was actually exercised (a single static route), this should be scored as a minimally-functional boilerplate rather than a substantive engineering deliverable.",
+    "summary": "This submission runs cleanly and the live probe matches the barebones claims in the README, but the codebase is essentially the stock Heroku Node.js starter template with no visible custom functionality added for the hiring challenge. The unused db.ejs view and the engine-version mismatch suggest incomplete customization or lack of attention to the manifest. As evidence of engineering skill for a hiring decision, this is thin — it demonstrates the app can be run but not that the candidate built anything substantial beyond the provided scaffold.",
     "interviewQuestions": [
-      "The tree includes views/pages/db.ejs but index.js only defines the root route — what was this view meant to do, and why isn't it wired up or tested?",
-      "You pinned engines to node 22.x/24.x/26.x yet the app ran fine on node 18 with EBADENGINE warnings — how would you actually enforce or verify engine compatibility in CI?",
-      "Walk me through what, if anything, in this repository is your own work versus the Heroku starter template — what would you add to make this genuinely demonstrate the challenge's requirements?"
+      "The repo includes views/pages/db.ejs but index.js has no route serving it — what was this meant to do, and why was it left disconnected?",
+      "package.json requires Node 22.x-26.x yet you ran (and presumably tested) on Node 18.20.4 — how did you validate engine compatibility before submitting?",
+      "Beyond the single static '/' route, what part of this application did you write or modify yourself versus what came from the Heroku template, and can you walk through those specific changes?"
     ]
   },
   "cost": {
-    "tokens": 14286,
-    "seconds": 71.825
+    "tokens": 9562,
+    "seconds": 73.557
   }
 }

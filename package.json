@@ -10,6 +10,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "smoke": "tsx src/smoke.ts",
+    "verify": "tsx src/verify.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
