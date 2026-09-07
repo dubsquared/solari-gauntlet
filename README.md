@@ -182,10 +182,15 @@ Shipped since the focus group:
   of spamming the thread. `--dry-run-comment` renders it to stdout without
   posting. Needs a `GITHUB_TOKEN` with pull-request write.
 
+- **GitHub Check Run** — with `--pr-check` (or `pr-check: true`), the diff
+  verdict is published as a first-class check on the head commit.
+  Conclusion is **advisory by default** — improvement/neutral pass,
+  regression/mixed report `neutral`, *nothing fails a merge* — so it
+  survives an org rollout. `--strict-check` opts into failing regressions
+  for teams that want a hard gate. Needs `checks: write`.
+
 Still on the roadmap:
 
-- **GitHub Check Run** — the diff verdict as a first-class check with a
-  neutral-by-default conclusion (advisory, survives rollout politics).
 - **Snapshot-warmed environments** — first green build of a repo becomes a
   Solari snapshot keyed by lockfile hash; later reviews boot from it in ~1s
   with dependencies hot. Cuts sandbox minutes per review to a predictable

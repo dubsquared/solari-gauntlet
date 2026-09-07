@@ -1,18 +1,18 @@
 {
   "repoUrl": "https://github.com/mdn/beginner-html-site-styled/pull/114",
   "reviewedCommit": "c3e3de8",
-  "sealedAt": "2026-09-07T23:19:02.736Z",
+  "sealedAt": "2026-09-07T23:22:49.140Z",
   "sha256": {
     "base/screenshot-mobile.png": "5a82829b9a7ae1dc75222066f6b3eaa2c92f67fe074b1df5111866eab20ac729",
     "base/screenshot.png": "7251094bee202f9a422022541adc7889975d1659541ea2f8c54c8c9a983f37a3",
     "head/screenshot-mobile.png": "5a82829b9a7ae1dc75222066f6b3eaa2c92f67fe074b1df5111866eab20ac729",
     "head/screenshot.png": "7251094bee202f9a422022541adc7889975d1659541ea2f8c54c8c9a983f37a3",
-    "report.md": "f1832c91bb63932cf8a7c3ae75c8e22178ad691b03b4c77b9227c73e4cec5022",
-    "verdict.json": "658e340a1f594a9756c980a92c5bed08004f7160a5ff6b422ad8d580e6300b38"
+    "report.md": "123ce39c9804a7de5ea5c2f9701eab3dc7d0518984853f5b23e69ca8999b8c31",
+    "verdict.json": "083eb40092500cf62f0edc6a17b01922af9d53d2da2c9e8e32066f5e94bbc448"
   },
   "attestation": {
     "algorithm": "ed25519",
     "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
-    "signature": "CGKhXfnPH23wQxL/JNJrmww6AlAHOuGVNUO97kXN8UbAgsMI9KvVFISoS+hhLdJGV16mc8uNGOaGkRS5G7f8CQ=="
+    "signature": "SH1J8QY/FpFsuYvYLNgLvwb5Rk5mUSgqQcqziZ+gVT5jgCosKwpzf8MW9HLaSWoRkrjpGcn5JT80TLv1YirPCQ=="
   }
 }

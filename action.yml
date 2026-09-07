@@ -29,6 +29,14 @@ inputs:
     description: "For PR-URL targets, post/update a sticky verdict comment on the PR."
     required: false
     default: "false"
+  pr-check:
+    description: "For PR-URL targets, publish a GitHub Check Run on the head commit."
+    required: false
+    default: "false"
+  strict-check:
+    description: "Fail the check run on a regression (default: advisory, never fails)."
+    required: false
+    default: "false"
   github-token:
     description: "Token with pull-request write, for --pr-comment. Defaults to the workflow token."
     required: false
@@ -59,7 +67,9 @@ runs:
           if [ -n "${GITHUB_EVENT_NAME}" ] && [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             # Behavioral-diff the PR itself, and post the verdict in the thread.
             REPOS="https://github.com/${GITHUB_REPOSITORY}/pull/$(jq -r .number "$GITHUB_EVENT_PATH")"
-            [ "${{ inputs.pr-comment }}" = "true" ] && COMMENT="--pr-comment"
+            [ "${{ inputs.pr-comment }}" = "true" ] && COMMENT="$COMMENT --pr-comment"
+            [ "${{ inputs.pr-check }}" = "true" ] && COMMENT="$COMMENT --pr-check"
+            [ "${{ inputs.strict-check }}" = "true" ] && COMMENT="$COMMENT --strict-check"
           else
             REPOS="https://github.com/${GITHUB_REPOSITORY}/tree/${GITHUB_REF_NAME}"
           fi

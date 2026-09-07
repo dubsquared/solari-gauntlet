@@ -103,6 +103,12 @@ export interface PrOptions {
   comment?: boolean
   /** Render the comment to stdout instead of posting it. */
   dryRunComment?: boolean
+  /** Publish a GitHub Check Run on the head commit (needs GITHUB_TOKEN). */
+  check?: boolean
+  /** Report the check conclusion without publishing it. */
+  dryRunCheck?: boolean
+  /** Fail the check on a regression instead of staying advisory. */
+  strictCheck?: boolean
 }
 
 export async function reviewPr(
@@ -182,6 +188,20 @@ export async function reviewPr(
         }
       }
     }
+
+    if (opts.check || opts.dryRunCheck) {
+      const conclusion = checkConclusion(verdict.assessment, Boolean(opts.strictCheck))
+      if (opts.dryRunCheck) {
+        console.log(`  ✓ check (dry run): conclusion=${conclusion}${opts.strictCheck ? " strict" : " advisory"}`)
+      } else {
+        const token = process.env.GITHUB_TOKEN
+        if (!token) console.error("  ✘ --pr-check needs GITHUB_TOKEN (checks:write)")
+        else {
+          const r = await postCheckRun(t, pr, sides, verdict, token, Boolean(opts.strictCheck))
+          console.log(`  ✓ check ${r.conclusion}: ${r.url}`)
+        }
+      }
+    }
     return { assessment: verdict.assessment, path }
   } finally {
     await sandbox.kill().catch(() => {})
@@ -222,6 +242,61 @@ ${sanitize(verdict.summary)}
 | stack-trace leaks | ${cell((s) => s.hostileLeaks)} |
 ${bullets("Improvements", verdict.improvements)}${bullets("Regressions", verdict.regressions)}${bullets("Concerns", verdict.concerns)}
 <sub>Both sides ran live in one disposable Solari sandbox; browser evidence is a real Chromium on a public preview URL. Advisory, not a merge gate · reviewed head \`${pr.headSha.slice(0, 7)}\`. Posted by [Gauntlet](https://github.com/dubsquared/solari-gauntlet).</sub>`
+}
+
+/**
+ * Map an assessment to a Check Run conclusion. Default is advisory: nothing
+ * fails the check (survives org rollout — a review bot that blocks merges on
+ * day one gets turned off). `strict` lets a repo opt into failing regressions.
+ */
+export function checkConclusion(
+  assessment: DiffVerdict["assessment"],
+  strict: boolean,
+): "success" | "neutral" | "failure" {
+  if (assessment === "improvement" || assessment === "neutral") return "success"
+  return strict ? "failure" : "neutral" // regression | mixed
+}
+
+/**
+ * Create a GitHub Check Run on the PR's head commit. Needs GITHUB_TOKEN with
+ * checks:write. The conclusion is advisory unless `strict`.
+ */
+export async function postCheckRun(
+  t: PrTarget,
+  pr: PrMeta,
+  sides: SideEvidence[],
+  verdict: DiffVerdict,
+  token: string,
+  strict: boolean,
+): Promise<{ conclusion: string; url: string }> {
+  const conclusion = checkConclusion(verdict.assessment, strict)
+  const now = new Date().toISOString()
+  const res = await fetch(`https://api.github.com/repos/${t.owner}/${t.repo}/check-runs`, {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${token}`,
+      "x-github-api-version": "2022-11-28",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: "Gauntlet · behavioral diff",
+      head_sha: pr.headSha,
+      status: "completed",
+      started_at: now,
+      completed_at: now,
+      conclusion,
+      output: {
+        title: `${icon[verdict.assessment]} ${verdict.assessment.toUpperCase()}${strict ? "" : " (advisory)"}`,
+        summary: sanitize(verdict.summary).slice(0, 65000),
+        text: renderPrComment(t, pr, sides, verdict).replace(COMMENT_MARKER, "").slice(0, 65000),
+      },
+    }),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) throw new Error(`GitHub API ${res.status} creating check run`)
+  const json = (await res.json()) as { html_url: string }
+  return { conclusion, url: json.html_url }
 }
 
 /**

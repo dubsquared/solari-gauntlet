@@ -51,6 +51,9 @@ function boolFlag(name: string, rest: string[]): boolean {
 const rest = [...args]
 const prComment = boolFlag("--pr-comment", rest)
 const dryRunComment = boolFlag("--dry-run-comment", rest)
+const prCheck = boolFlag("--pr-check", rest)
+const dryRunCheck = boolFlag("--dry-run-check", rest)
+const strictCheck = boolFlag("--strict-check", rest)
 // Starter plan allows 2 concurrent sandboxes; cap defensively above that.
 const concurrency = Math.min(8, Math.round(numFlag("--concurrency", rest, 1)))
 // Hard ceiling on Anthropic tokens for the whole batch — when the meter
@@ -187,7 +190,13 @@ for (const prt of prTargets) {
     continue
   }
   try {
-    await reviewPr(pt, prt, { comment: prComment, dryRunComment })
+    await reviewPr(pt, prt, {
+      comment: prComment,
+      dryRunComment,
+      check: prCheck,
+      dryRunCheck,
+      strictCheck,
+    })
   } catch (err) {
     failures++
     console.error(

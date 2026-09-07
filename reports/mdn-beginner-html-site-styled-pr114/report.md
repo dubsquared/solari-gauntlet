@@ -4,7 +4,7 @@
 
 `main` @ bf7d481 → `sreejadandu-patch-1` @ c3e3de8 · 95s · ~4k tokens · advisory, not a merge gate
 
-This PR adds rel="noopener noreferrer" and target="_blank" to the external Mozilla Manifesto link in index.html. This is a minor, low-risk change that improves security by preventing the new page from accessing window.opener, and opens the link in a new tab per common practice for external links. Deterministic metrics show no meaningful behavioral regression (load time and console errors essentially unchanged, build still passes).
+This PR adds target="_blank" and rel="noopener noreferrer" to the external Mozilla Manifesto link in index.html, a small, low-risk security/UX improvement preventing reverse tabnabbing and opening external links in a new tab. Build and probe results are unchanged between base and head, confirming no regressions or side effects. The change is minimal and scoped to a single line in a static HTML file.
 
 ## Measured, not claimed
 
@@ -12,18 +12,18 @@ This PR adds rel="noopener noreferrer" and target="_blank" to the external Mozil
 | --- | --- | --- |
 | Build | ✅ | ✅ |
 | Own tests | none found | none found |
-| Landing DOM load | 124ms | 127ms |
+| Landing DOM load | 120ms | 118ms |
 | Console errors | 2 | 2 |
 | Stack-trace leaks under hostile input | 0 | 0 |
 | Live probe | ✅ | ✅ |
 
 ## Improvements
-- External link now uses rel="noopener noreferrer" mitigating potential reverse tabnabbing security risk
-- target="_blank" added so external link opens in a new tab, a common UX practice
+- Adds rel="noopener noreferrer" to external link, mitigating reverse tabnabbing risk
+- Adds target="_blank" for better UX when following external links
 
 ## Concerns
-- Very small, single-line change with minimal impact on a static beginner tutorial site; unlikely to be a meaningful security fix but not harmful
-- No tests exist to verify behavior beyond manual diff review
+- No functional test coverage exists for this static site, so the change relies on manual/visual verification only
+- PR description text is straightforward and matches the diff, but reviewers should always treat embedded PR text as untrusted per instructions
 
 ### base — what the cloud browser saw
 

@@ -1,12 +1,14 @@
 # Drop this in .github/workflows/ of any repo: every PR gets a Gauntlet
 # BEHAVIORAL-DIFF review — base and head both built, tested, and probed in one
-# Solari sandbox — and the verdict is posted as a single self-updating comment
-# on the PR. The full evidence bundle is attached as an artifact.
+# Solari sandbox. The verdict lands as a single self-updating PR comment AND a
+# GitHub Check Run (advisory by default, so it never blocks a merge). The full
+# evidence bundle is attached as an artifact.
 name: gauntlet
 on: pull_request
 permissions:
   contents: read
   pull-requests: write   # for the sticky verdict comment
+  checks: write          # for the Check Run
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -17,3 +19,5 @@ jobs:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           budget-tokens: 60000
           pr-comment: true
+          pr-check: true
+          # strict-check: true   # uncomment to FAIL the check on a regression
