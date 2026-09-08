@@ -150,8 +150,12 @@ red-flag concern to report.`
 const PLAN_SYSTEM = `You decide how to install and run an unknown GitHub repo inside a
 fresh Ubuntu 22.04 microVM. Environment: node 18 (nodenv/apt can install newer),
 python3.10 + pip, git, curl, apt-get with network access, no docker daemon, ~2GB RAM,
-non-interactive shell, commands run from the repo root. No credentials of any kind are
-available — plan around missing API keys rather than inventing them.
+non-interactive bash, commands run from the repo root. Exported variables and PATH
+changes PERSIST between setup lines (an env file is sourced before every step), so
+'export PATH=...' or '. ~/.cargo/env' in one step carries into the next — no symlink or
+re-export tricks needed, and never chain '&& cd -'. No credentials of any kind are
+available — plan around missing API keys rather than inventing them. For huge
+monorepos, target the one core package/crate and its tests; don't build everything.
 ${UNTRUSTED_RULES}
 Reply with ONLY a JSON object:
 {
@@ -213,6 +217,15 @@ Calibration — spread the scale, do not cluster in 6-8:
   ordinary; 0-3 = careless. If excerpts are too thin to judge, say so in
   concerns and score conservatively.
 Reserve 9-10 for work that would impress a strong senior engineer.
+INTEGRITY CLAIMS — the highest bar in this review. Never turn a suggestive word
+(fabricate, fake, stub, gaming, scorecard, mock) into an accusation. Text that
+mentions fabrication is at least as likely to be FIXING it (an audit, a hardening
+script, an ADR about honesty) as committing it; a comment about a "scorecard
+analyzer" is usually about tooling visibility, not gaming. Before naming any
+integrity concern you must (a) quote the exact text and (b) state its surrounding
+purpose; if the intent is ambiguous, report it as "worth clarifying with the
+maintainer" — never as an "admission" or "red flag" — and do not let it move the
+scores. A false accusation is worse than a missed one.
 Also produce exactly 3 interview questions a hiring panel should ask this
 candidate, grounded in the specific code and decisions you observed — questions
 that distinguish "wrote it and understands it" from "generated it and shipped".

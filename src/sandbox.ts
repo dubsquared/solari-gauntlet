@@ -102,6 +102,8 @@ export async function withWatchdog<T>(p: Promise<T>, ms: number, what: string): 
  * back as exit 124 with a hint — a failed step the self-healing loop can react
  * to — instead of tripping the host watchdog and aborting the whole review.
  */
+const ENV_FILE = "/tmp/gauntlet.env"
+
 async function timedStep(
   sandbox: Sandbox,
   workDir: string,
@@ -109,9 +111,21 @@ async function timedStep(
   timeoutMs: number,
 ): Promise<StepResult> {
   const secs = Math.max(10, Math.floor(timeoutMs / 1000))
+  // Every step runs in a fresh shell, so an `export PATH=…` or `source
+  // ~/.cargo/env` in one step would vanish before the next — the single
+  // biggest source of planner friction (the Go and Rust toolchain installs
+  // both hit it). Persist the environment across steps through an env file,
+  // captured INSIDE the step's own shell so its exports are what get saved.
+  // Also pin HOME, which non-interactive shells leave unset.
+  const inner = `${cmd}; __rc=$?; export -p > ${ENV_FILE} 2>/dev/null; exit $__rc`
+  // `.` is a POSIX special builtin: sourcing a MISSING file makes a
+  // non-interactive shell exit 2 outright (2>/dev/null can't stop a shell
+  // exit). Test for the file first, or step 1 dies before the command runs
+  // and the env file is never created — every later step then dies too.
   const res = await sh(
     sandbox,
-    `cd ${workDir} && timeout -k 10 ${secs} sh -c '${cmd.replaceAll("'", "'\\''")}'`,
+    `export HOME=\${HOME:-/root}; [ -f ${ENV_FILE} ] && . ${ENV_FILE}; cd ${workDir} && ` +
+      `timeout -k 10 ${secs} bash -c '${inner.replaceAll("'", "'\\''")}'`,
     timeoutMs + 30_000,
   )
   if (res.exitCode === 124)
@@ -122,12 +136,17 @@ async function timedStep(
   return { ...res, cmd }
 }
 
-/** `commands.run` is not shell-interpreted, so everything goes through sh -c. */
+/**
+ * `commands.run` is not shell-interpreted, so everything goes through a shell.
+ * bash, not sh: the base image's /bin/sh is dash, which has no `source`, `[[`,
+ * or arrays — planners write bash-isms constantly, and each one cost a replan.
+ * bash also makes `export -p` (declare -x …) round-trip through the env file.
+ */
 export async function sh(sandbox: Sandbox, cmd: string, timeoutMs = 180_000): Promise<StepResult> {
   const out = await withWatchdog(
-    sandbox.commands.run("sh", { args: ["-c", cmd], timeoutMs }),
+    sandbox.commands.run("bash", { args: ["-c", cmd], timeoutMs }),
     timeoutMs + 30_000, // remote timeout plus grace for the round trip
-    `sh -c ${JSON.stringify(cmd.slice(0, 60))}`,
+    `bash -c ${JSON.stringify(cmd.slice(0, 60))}`,
   )
   return { cmd, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr }
 }
