@@ -76,9 +76,33 @@ export async function bootSandbox(pt: SolariClient, fromSnapshot?: string): Prom
   return sandbox
 }
 
+/**
+ * Host-side watchdog. The SDK's timeoutMs governs the REMOTE command, but if
+ * the control channel dies mid-call the promise never settles — and one hung
+ * call would hang the whole review forever. Race every call against a timer.
+ */
+export async function withWatchdog<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  const guard = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`host watchdog: ${what} gave no response in ${Math.round(ms / 1000)}s — control channel likely dead`)),
+      ms,
+    )
+  })
+  try {
+    return await Promise.race([p, guard])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 /** `commands.run` is not shell-interpreted, so everything goes through sh -c. */
 export async function sh(sandbox: Sandbox, cmd: string, timeoutMs = 180_000): Promise<StepResult> {
-  const out = await sandbox.commands.run("sh", { args: ["-c", cmd], timeoutMs })
+  const out = await withWatchdog(
+    sandbox.commands.run("sh", { args: ["-c", cmd], timeoutMs }),
+    timeoutMs + 30_000, // remote timeout plus grace for the round trip
+    `sh -c ${JSON.stringify(cmd.slice(0, 60))}`,
+  )
   return { cmd, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr }
 }
 
@@ -199,10 +223,10 @@ export async function buildAndRun(
   seedPlan?: RunPlan,
 ): Promise<ExecutedPlan> {
   const priorPlans: RunPlan[] = []
-  // Warm path: replay the cached plan first — zero planning tokens, and it
-  // self-heals via revisePlan if the repo changed enough to break it.
+  // A seed plan is either a warm-snapshot cache hit or a plan the caller
+  // already computed; either way we try it first and self-heal via revisePlan
+  // if the repo changed enough to break it. The caller logs the warm case.
   let plan = seedPlan ?? (await planRun(context))
-  if (seedPlan) console.log("  ♻ replaying cached plan (no planning tokens)")
   const steps: StepResult[] = []
 
   for (let attempt = 1; attempt <= MAX_PLAN_ATTEMPTS; attempt++) {

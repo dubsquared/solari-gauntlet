@@ -178,6 +178,7 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
 
     // Decide the kind up front so GUI submissions route to a desktop (a
     // screen) instead of being run headless in the sandbox.
+    if (seedPlan) console.log("  ♻ replaying cached plan from warm snapshot (no planning tokens)")
     const plan0 = seedPlan ?? (await planRun(context))
 
     if (plan0.kind === "gui") {
