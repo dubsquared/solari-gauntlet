@@ -1,6 +1,6 @@
 # Cross-batch similarity
 
-9 fingerprinted submission(s) compared pairwise by MinHash Jaccard over source k-shingles — the MOSS/JPlag method, computed locally at zero token cost.
+10 fingerprinted submission(s) compared pairwise by MinHash Jaccard over source k-shingles — the MOSS/JPlag method, computed locally at zero token cost.
 
 No pair exceeded the 0.4 overlap threshold. No clones detected.
 

@@ -1,0 +1,17 @@
+{
+  "repoUrl": "https://github.com/ruvnet/ruv-FANN.git",
+  "reviewedCommit": "1d93b35",
+  "sealedAt": "2026-09-08T03:49:10.797Z",
+  "sha256": {
+    "fingerprint.json": "ebb5a5598a04ebab53cbbc79876800f7f79f51a512d3e5d5aeffe98d7972e826",
+    "invoice.json": "f8633323bf9519f1b7abf50a5b1f2cd6fcbf9cebc6ffde1b11e6cf33e05317be",
+    "report.html": "91f8705b165f767133bf719f6f8b85b2af5069151d697fd4c69c590497a5b546",
+    "report.md": "1a815aaf3df8bdaa097ce1723eecc08bd6a9968d5b9ca82e2ff942e0dfc93e3d",
+    "verdict.json": "d446ba14f8e360e737930a6ec7ded7d1086f2bc56f965ba51212a7f7596f497b"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "iKCEbf0oJQ/P8R0LjsglMp2MAqhn4dfoe5xV8W2w98yd6ity5s+rLAphnqVgJYJGyw3UsUqK8ISx8Dj19HS6Ag=="
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "repoUrl": "https://github.com/ruvnet/ruv-FANN.git",
+  "commit": "1d93b35",
+  "total": 17,
+  "flagged": false,
+  "verdict": {
+    "runs": 8,
+    "deliversClaims": 4,
+    "codeQuality": 5,
+    "strengths": [
+      "The core ruv-fann Rust library actually compiled cleanly in release mode after only standard toolchain setup (rustup, apt build tools), with no patched Cargo.toml or workarounds needed.",
+      "The submitted test run shows 173 passing tests (0 failed) across varied modules (webgpu compute context, kernel optimizer, pipeline cache, pressure monitor, training/adam convergence), which is a genuine, verifiable signal that at least the core crate has functioning unit tests.",
+      "The helper scripts shown (github-safe.js, memory.js, session.js, router.js) are small, single-purpose utilities with reasonable error handling (try/catch, fallback behavior) and clear CLI usage docs."
+    ],
+    "concerns": [
+      "The file tree and source excerpts provided are almost entirely from a cuda-wasm sub-package and .claude tooling/orchestration scripts, not from the actual ruv-fann neural network core, neuro-divergent forecasting, or ruv-swarm agent code that the README's headline claims (84.8% SWE-Bench solve rate, 27+ forecasting models, 2-4x speedups) depend on. None of those claims are checkable from what was shown.",
+      "The live probe returned only raw CLI build/test output with empty pageText and consoleErrors — there is no evidence of any running demo, server, or UI behavior that would let a reviewer verify functional claims beyond 'the library compiles and its unit tests pass'.",
+      "Dependency audit reports 2 high and 1 moderate severity vulnerabilities across the workspace; these were not addressed or explained in what was shown.",
+      "Security sweep flagged ./.claude/agents/v3/pii-detector.md and .../security-auditor.md as matching secret patterns — these read as agent role-definition docs (a 'PII detector' and 'security auditor' persona), most likely filename/keyword false positives rather than actual leaked secrets, but this is worth clarifying with the maintainer rather than assuming either way.",
+      "The repository is an enormous, sprawling monorepo (cuda-wasm, ruv-swarm, neuro-divergent, extensive .claude/.claude-flow tooling, dozens of ADRs/docs) which makes it very hard to assess actual authorship, cohesion, and code quality of the flagship claims within the scope of evidence given."
+    ],
+    "summary": "The evidence supports that the core ruv-fann Rust crate builds cleanly and passes its own 173-test suite, which is a real, positive signal for that narrow slice of the project. However, the README's most prominent claims (ephemeral swarm intelligence, 84.8% SWE-Bench performance, 27+ forecasting models) are entirely unverified by the source excerpts or live probe provided, which show only tooling scripts and a bare CLI build/test log. Given the thinness and non-representativeness of the reviewed code plus outstanding dependency vulnerabilities, this should be scored as 'runs and has a tested core' rather than 'delivers on its ambitious claims'.",
+    "interviewQuestions": [
+      "Walk us through 2-3 of the 173 passing tests in the core library (e.g., in webgpu::compute_context or training::test_all_algorithms) — what specific FANN behavior are they validating, and did you write them or generate them?",
+      "The README claims a competitive '84.8% SWE-Bench solve rate' for ruv-swarm outperforming Claude 3.7 — what is the benchmark harness for that claim, where does it live in the repo, and can you reproduce the number live?",
+      "The dependency audit shows 2 high-severity vulnerabilities in the workspace — which crates are they in, what's the exploit surface, and what's your patching plan?"
+    ]
+  },
+  "cost": {
+    "tokens": 38484,
+    "seconds": 158.803
+  }
+}

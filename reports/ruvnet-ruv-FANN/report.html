@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gauntlet · ruvnet/ruv-FANN</title>
+
+<style>
+body{font-family:ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#e6e8eb;max-width:960px;margin:2rem auto;padding:0 1rem}
+a{color:#7ab7ff}h1{font-size:1.4rem}h2{font-size:1.05rem;margin-top:2rem;color:#9aa4b2}
+.total{font-size:3rem;font-weight:800}.delta{font-size:1rem;color:#f0b429;margin-left:.75rem}
+.score{display:flex;align-items:center;gap:.75rem;margin:.4rem 0}.score span{width:11rem;color:#9aa4b2}
+.bar{flex:1;height:10px;background:#1a1f26;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#f0b429,#ff7849)}
+ul{line-height:1.6}.flag{background:#3b2500;border:1px solid #f0b429;border-radius:8px;padding:.75rem 1rem;margin:1rem 0}
+img{max-width:100%;border-radius:8px;border:1px solid #2a2f36;margin:.5rem 0}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2a2f36;padding:.4rem .6rem;text-align:left}
+.meta{color:#9aa4b2;font-size:.9rem}code{background:#1a1f26;padding:.1rem .35rem;border-radius:4px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem}@media(max-width:700px){.cols{grid-template-columns:1fr}}
+</style></head><body>
+<h1>🥊 Gauntlet review — <a href="https://github.com/ruvnet/ruv-FANN">ruvnet/ruv-FANN</a></h1>
+<p class="meta">commit <code>1d93b35</code> · ran as <code>cli</code> · 159s · ~38k tokens · evidence sealed &amp; signed (manifest.json)</p>
+<div class="total">17/30</div>
+<div class="score"><span>Runs</span><div class="bar"><i style="width:80%"></i></div><b>8/10</b></div><div class="score"><span>Delivers its claims</span><div class="bar"><i style="width:40%"></i></div><b>4/10</b></div><div class="score"><span>Code quality</span><div class="bar"><i style="width:50%"></i></div><b>5/10</b></div>
+<p>The evidence supports that the core ruv-fann Rust crate builds cleanly and passes its own 173-test suite, which is a real, positive signal for that narrow slice of the project. However, the README's most prominent claims (ephemeral swarm intelligence, 84.8% SWE-Bench performance, 27+ forecasting models) are entirely unverified by the source excerpts or live probe provided, which show only tooling scripts and a bare CLI build/test log. Given the thinness and non-representativeness of the reviewed code plus outstanding dependency vulnerabilities, this should be scored as 'runs and has a tested core' rather than 'delivers on its ambitious claims'.</p>
+<div class="cols"><div><h2>Strengths</h2><ul><li>The core ruv-fann Rust library actually compiled cleanly in release mode after only standard toolchain setup (rustup, apt build tools), with no patched Cargo.toml or workarounds needed.</li><li>The submitted test run shows 173 passing tests (0 failed) across varied modules (webgpu compute context, kernel optimizer, pipeline cache, pressure monitor, training/adam convergence), which is a genuine, verifiable signal that at least the core crate has functioning unit tests.</li><li>The helper scripts shown (github-safe.js, memory.js, session.js, router.js) are small, single-purpose utilities with reasonable error handling (try/catch, fallback behavior) and clear CLI usage docs.</li></ul></div>
+<div><h2>Concerns</h2><ul><li>The file tree and source excerpts provided are almost entirely from a cuda-wasm sub-package and .claude tooling/orchestration scripts, not from the actual ruv-fann neural network core, neuro-divergent forecasting, or ruv-swarm agent code that the README's headline claims (84.8% SWE-Bench solve rate, 27+ forecasting models, 2-4x speedups) depend on. None of those claims are checkable from what was shown.</li><li>The live probe returned only raw CLI build/test output with empty pageText and consoleErrors — there is no evidence of any running demo, server, or UI behavior that would let a reviewer verify functional claims beyond 'the library compiles and its unit tests pass'.</li><li>Dependency audit reports 2 high and 1 moderate severity vulnerabilities across the workspace; these were not addressed or explained in what was shown.</li><li>Security sweep flagged ./.claude/agents/v3/pii-detector.md and .../security-auditor.md as matching secret patterns — these read as agent role-definition docs (a 'PII detector' and 'security auditor' persona), most likely filename/keyword false positives rather than actual leaked secrets, but this is worth clarifying with the maintainer rather than assuming either way.</li><li>The repository is an enormous, sprawling monorepo (cuda-wasm, ruv-swarm, neuro-divergent, extensive .claude/.claude-flow tooling, dozens of ADRs/docs) which makes it very hard to assess actual authorship, cohesion, and code quality of the flagship claims within the scope of evidence given.</li></ul></div></div>
+<h2>The submission's own tests</h2>
+<p><code>cargo test --lib --release --manifest-path Cargo.toml -- --test-threads=2 2&gt;&amp;1 | tail -100</code> → <b>PASS ✅</b></p>
+<h2>Security sweep</h2>
+<p>audit: moderate: 1, high: 2, total: 3 · secrets: ⚠️ 2 file(s)</p>
+
+
+<h2>Ask the candidate</h2><ol><li>Walk us through 2-3 of the 173 passing tests in the core library (e.g., in webgpu::compute_context or training::test_all_algorithms) — what specific FANN behavior are they validating, and did you write them or generate them?</li><li>The README claims a competitive '84.8% SWE-Bench solve rate' for ruv-swarm outperforming Claude 3.7 — what is the benchmark harness for that claim, where does it live in the repo, and can you reproduce the number live?</li><li>The dependency audit shows 2 high-severity vulnerabilities in the workspace — which crates are they in, what's the exploit surface, and what's your patching plan?</li></ol>
+
+
+
+<p class="meta">Generated by <a href="https://github.com/dubsquared/solari-gauntlet">Gauntlet</a> — sandboxes &amp; cloud browsers by Solari, judgment by Claude. Verify this evidence: <code>npm run verify -- &lt;this directory&gt;</code></p>
+</body></html>
