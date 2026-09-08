@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gauntlet · teslamotors/vehicle-command</title>
+
+<style>
+body{font-family:ui-sans-serif,system-ui,sans-serif;background:#0b0d10;color:#e6e8eb;max-width:960px;margin:2rem auto;padding:0 1rem}
+a{color:#7ab7ff}h1{font-size:1.4rem}h2{font-size:1.05rem;margin-top:2rem;color:#9aa4b2}
+.total{font-size:3rem;font-weight:800}.delta{font-size:1rem;color:#f0b429;margin-left:.75rem}
+.score{display:flex;align-items:center;gap:.75rem;margin:.4rem 0}.score span{width:11rem;color:#9aa4b2}
+.bar{flex:1;height:10px;background:#1a1f26;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#f0b429,#ff7849)}
+ul{line-height:1.6}.flag{background:#3b2500;border:1px solid #f0b429;border-radius:8px;padding:.75rem 1rem;margin:1rem 0}
+img{max-width:100%;border-radius:8px;border:1px solid #2a2f36;margin:.5rem 0}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #2a2f36;padding:.4rem .6rem;text-align:left}
+.meta{color:#9aa4b2;font-size:.9rem}code{background:#1a1f26;padding:.1rem .35rem;border-radius:4px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem}@media(max-width:700px){.cols{grid-template-columns:1fr}}
+</style></head><body>
+<h1>🥊 Gauntlet review — <a href="https://github.com/teslamotors/vehicle-command">teslamotors/vehicle-command</a></h1>
+<p class="meta">commit <code>f97fa1e</code> · ran as <code>cli</code> · 117s · ~61k tokens · evidence sealed &amp; signed (manifest.json)</p>
+<div class="total">24/30</div>
+<div class="score"><span>Runs</span><div class="bar"><i style="width:90%"></i></div><b>9/10</b></div><div class="score"><span>Delivers its claims</span><div class="bar"><i style="width:80%"></i></div><b>8/10</b></div><div class="score"><span>Code quality</span><div class="bar"><i style="width:70%"></i></div><b>7/10</b></div>
+<p>Technically, the submission builds, its test suite passes cleanly across nearly a dozen packages, and the CLI's live output matches the documented command list, which is good verifiable evidence of a working, decently structured codebase. However, the tree and content are essentially identical to Tesla's actual open-source vehicle-command repository, with no visible sign of original candidate work — this is a serious authenticity red flag for a hiring submission that must be addressed before crediting design or implementation decisions to the candidate. Scores here reflect only the observable run/test/quality evidence, not authorship.</p>
+<div class="cols"><div><h2>Strengths</h2><ul><li>Repo builds cleanly with `go build ./...` and the CLI actually runs, producing help output that matches the documented command set in the README</li><li>Test suite passes across essentially all packages (dispatcher, schnorr, account, cache, cli, connector/inet, protocol, proxy, vehicle) with no failures observed</li><li>Code is organized into clear internal/ (crypto, session, dispatcher) and pkg/ (protocol, vehicle, proxy, cli) boundaries with dedicated test files per package, suggesting deliberate architecture rather than a monolithic script</li><li>Sentinel errors (ErrCommandLineArgs, ErrInvalidTime) and explicit error propagation are used in the CLI command layer rather than panics or silent failures</li></ul></div>
+<div><h2>Concerns</h2><ul><li>CRITICAL: the file tree, go.mod, README, and source excerpts are an essentially exact match for the public teslamotors/vehicle-command GitHub repository (down to file names like internal/schnorr, doc/authorization.puml, and the Makefile). There is no visible diff, added feature, or candidate-authored module distinguishing this from a plain clone of the official upstream project — this must be verified as the candidate's own contribution before any credit is given</li><li>The 'live probe' only exercises `-h`/usage output; no actual vehicle command, BLE, or HTTP-proxy interaction was demonstrated, so the deeper protocol/authentication claims in the README (E2E command auth, BLE pairing, REST proxy behavior) remain unverified against real behavior</li><li>Initial run required substantial environment repair (missing Go toolchain, GOPATH/GOMODCACHE unset) — friction was in tooling setup rather than the code itself, but it means the environment was not 'ready to run' out of the box</li><li>Code excerpts provided are shallow (mostly CLI arg-parsing and boilerplate wrappers); the core cryptographic/session logic (internal/authentication, internal/schnorr) that would best demonstrate engineering skill was not shown for direct quality assessment</li></ul></div></div>
+<h2>The submission's own tests</h2>
+<p><code>export PATH=$PATH:/usr/local/go/bin GOPATH=/root/go GOCACHE=/root/.cache/go-build GOMODCACHE=/root/go/pkg/mod HOME=/root &amp;&amp; go test ./... || true</code> → <b>PASS ✅</b></p>
+<h2>Security sweep</h2>
+<p>audit: n/a · secrets: ⚠️ 7 file(s)</p>
+
+
+<h2>Ask the candidate</h2><ol><li>Walk me through the session handshake in internal/authentication/dispatcher.go and ecdh.go — why is a Diffie-Hellman handshake needed before commands can be signed, and what attack does it prevent?</li><li>The Makefile runs `go vet` and golangci-lint separately from `go test` — what specific lint rules or vet checks did you have to work around, and why?</li><li>In cmd/tesla-control/commands.go, commands are dispatched through a Handler map keyed by domain/name — what would you change if you needed to add a new command that requires both BLE and Fleet API paths, and where would that logic actually live?</li></ol>
+
+
+
+<p class="meta">Generated by <a href="https://github.com/dubsquared/solari-gauntlet">Gauntlet</a> — sandboxes &amp; cloud browsers by Solari, judgment by Claude. Verify this evidence: <code>npm run verify -- &lt;this directory&gt;</code></p>
+</body></html>

@@ -1,0 +1,17 @@
+{
+  "repoUrl": "https://github.com/teslamotors/vehicle-command.git",
+  "reviewedCommit": "f97fa1e",
+  "sealedAt": "2026-09-08T01:50:48.386Z",
+  "sha256": {
+    "fingerprint.json": "0316bc18adca9a942e0f0521a50940f48fed140c6cfdc914c16449ddee27dfae",
+    "invoice.json": "b044aface9a5421de95b861596b530be488169f54651232dc719c4cbaf1c9a0e",
+    "report.html": "077aca99e953768eb3e23b846b4961a125e6a19c7b13b90bf85ff4731c6095fe",
+    "report.md": "56202bf9d1f26d1db6604cb2c17b5c075b9094eff7f7c144cfd95f748a89c0d7",
+    "verdict.json": "71431a97b196e144ac438585732c64820e136f67275e30baec22a817393a9dfa"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "DZxnv7DAHs5EW/HjWwHzIfps3f4qF7xzrhRg4QEoG1J8LOYbWD8Vw9U+3SfTqXvX8E81jnkXbGsY4bJC27F0CA=="
+  }
+}
