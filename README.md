@@ -148,6 +148,7 @@ export SOLARI_API_KEY=slr_live_...      # console.getsolari.com
 export ANTHROPIC_API_KEY=sk-ant-...     # console.anthropic.com
 
 npm run smoke                        # verifies the Solari half alone — no Anthropic key needed
+npm run selftest                     # commands DESIGNED to fail — asserts the harness reports them honestly
 npm start -- https://github.com/heroku/node-js-getting-started
 ```
 
