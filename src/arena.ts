@@ -8,6 +8,36 @@
 import { readdir, readFile, writeFile, stat } from "node:fs/promises"
 import { join } from "node:path"
 
+/**
+ * On GitHub Pages a bare .md is served as raw text. For any review that only
+ * has report.md (older reviews, before HTML cards), write a lightweight
+ * report.html that renders its sibling markdown with marked — so every Arena
+ * link opens a real page. Zero cost, no re-review.
+ */
+async function ensureFallbackCards(reportsRoot: string): Promise<void> {
+  for (const e of await readdir(reportsRoot, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue
+    const dir = join(reportsRoot, e.name)
+    const hasMd = await stat(join(dir, "report.md")).then(() => true, () => false)
+    const hasHtml = await stat(join(dir, "report.html")).then(() => true, () => false)
+    if (!hasMd || hasHtml) continue
+    await writeFile(
+      join(dir, "report.html"),
+      `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gauntlet review — ${e.name}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-dark.min.css">
+<style>body{background:#0b0d10;margin:0}.markdown-body{box-sizing:border-box;max-width:900px;margin:0 auto;padding:44px 24px;background:#0b0d10}a.back{color:#7ab7ff;font-family:system-ui;text-decoration:none;display:inline-block;margin:18px 24px 0}</style>
+</head><body>
+<a class="back" href="../arena.html">← Arena</a>
+<article class="markdown-body" id="c">loading…</article>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>fetch("./report.md").then(r=>r.text()).then(t=>{document.getElementById("c").innerHTML=marked.parse(t)}).catch(()=>{document.getElementById("c").textContent="could not load report.md"})</script>
+</body></html>\n`,
+    )
+  }
+}
+
 interface Row {
   slug: string
   kind: "repo" | "pr"
@@ -121,7 +151,7 @@ code{background:#1a1f26;padding:.05rem .35rem;border-radius:4px;color:#9aa4b2;fo
 footer{color:#6b7280;margin-top:2.5rem;font-size:.85rem}
 </style></head><body>
 <h1>🥊 Gauntlet Arena</h1>
-<p class="sub">Every repo that ran the gauntlet — built, tested, and probed in a Solari sandbox, scored by Claude. Higher is better; each row links to the full evidence.</p>
+<p class="sub">Every repo that ran the gauntlet — built, tested, and probed in a Solari sandbox (or a desktop, for GUIs), scored by Claude. Higher is better; each row links to the full evidence — report card, screenshots, and session replay.</p>
 
 <h2>Repositories · ${repos.length}</h2>
 <table><thead><tr><th class="rank">#</th><th>submission</th><th>score</th><th>runs</th><th>claims</th><th>quality</th></tr></thead>
@@ -145,6 +175,7 @@ evidence in each report is ed25519-signed (<code>npm run verify</code>).</footer
 }
 
 export async function buildArena(reportsRoot = "reports"): Promise<string> {
+  await ensureFallbackCards(reportsRoot)
   const rows = await collectRows(reportsRoot)
   const path = join(reportsRoot, "arena.html")
   await writeFile(path, renderArena(rows))

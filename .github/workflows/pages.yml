@@ -1,0 +1,37 @@
+name: pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      # Rebuild the scoreboard + fallback cards from committed evidence (no API).
+      - run: npm run arena
+      - name: Assemble the site
+        run: |
+          rm -rf _site && mkdir _site
+          cp -r reports/* _site/
+          cp reports/arena.html _site/index.html   # the Arena is the landing page
+          touch _site/.nojekyll                     # serve .html/.png/.ndjson as-is
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

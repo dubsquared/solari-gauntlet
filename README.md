@@ -4,6 +4,8 @@
 
 **An AI reviewer for code submissions, built on [Solari](https://getsolari.com).**
 
+**🏟 Live scoreboard: [dubsquared.github.io/solari-gauntlet](https://dubsquared.github.io/solari-gauntlet/)** — every review, ranked, each row linking to its full evidence card and session replay.
+
 Point Gauntlet at any GitHub repo. It clones the repo into a fresh Solari
 sandbox, has Claude figure out how to install and run it (and re-plan when a
 build breaks), exposes the running app on a public preview URL, opens that URL
