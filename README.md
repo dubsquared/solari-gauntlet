@@ -189,12 +189,21 @@ Shipped since the focus group:
   survives an org rollout. `--strict-check` opts into failing regressions
   for teams that want a hard gate. Needs `checks: write`.
 
+- **Snapshot-warmed environments** (`--warm`, opt-in) — the first green build
+  of a repo is checkpointed as a Solari snapshot with dependencies hot *and
+  the known-good run plan baked inside it*. A later `--warm` review of the
+  same repo boots from that snapshot, syncs to the target commit, and
+  **replays the cached plan — zero planning tokens, no replan guesswork**.
+  It's a pure optimization: any warm miss (a dropped control channel after
+  restore, a sync error) discards that VM and cold-boots clean, so warm-start
+  can never fail or corrupt a review — only ever make it a little slower.
+  Snapshots are keyed by repo + lockfile hash and LRU-evicted (newest 2 per
+  repo). Biggest win on repos with a heavy, stable dependency install that
+  you re-review often; for trivial static repos the boot overhead can make it
+  a wash, which is why it's off by default.
+
 Still on the roadmap:
 
-- **Snapshot-warmed environments** — first green build of a repo becomes a
-  Solari snapshot keyed by lockfile hash; later reviews boot from it in ~1s
-  with dependencies hot. Cuts sandbox minutes per review to a predictable
-  floor, which is what a tooling budget line item requires.
 - **Watch mode / Gauntlet Arena** — a standing reviewer with a public,
   self-updating scoreboard of report cards.
 

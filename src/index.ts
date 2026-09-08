@@ -22,6 +22,7 @@ import {
 } from "./sandbox.js"
 import { parsePrUrl, reviewPr, type PrTarget } from "./pr.js"
 import { writeIndex, writeReport, type ReportSummary } from "./report.js"
+import { findWarmSnapshot, lockfileHash, readSeedPlan, saveWarmSnapshot, syncToRef } from "./warm.js"
 import type { ProbeResult } from "./types.js"
 
 const args = process.argv.slice(2)
@@ -54,6 +55,10 @@ const dryRunComment = boolFlag("--dry-run-comment", rest)
 const prCheck = boolFlag("--pr-check", rest)
 const dryRunCheck = boolFlag("--dry-run-check", rest)
 const strictCheck = boolFlag("--strict-check", rest)
+// Snapshot-warmed environments: reuse a repo's built VM across reviews.
+const warm = boolFlag("--warm", rest) || process.env.GAUNTLET_WARM === "1"
+const noWarm = boolFlag("--no-warm", rest)
+const warmEnabled = warm && !noWarm
 // Starter plan allows 2 concurrent sandboxes; cap defensively above that.
 const concurrency = Math.min(8, Math.round(numFlag("--concurrency", rest, 1)))
 // Hard ceiling on Anthropic tokens for the whole batch — when the meter
@@ -97,13 +102,51 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
   const { url, slug } = target
   console.log(`\n▶ ${url}${target.ref ? ` @ ${target.ref}` : ""}${target.subdir ? ` /${target.subdir}` : ""}`)
   const reportDir = join("reports", slug)
-  const sandbox = await bootSandbox(pt)
-  console.log(`  sandbox: ${sandbox.sandboxId.slice(0, 24)}…`)
+
+  // Warm-start only applies to plain-repo targets (the re-review case). A
+  // subdir target's snapshot layout differs, so those always cold-boot.
+  const warmable = warmEnabled && !target.subdir
+
+  // Acquire a ready sandbox with the repo checked out. Warm-start is a pure
+  // optimization: if any part of it fails (control channel drop after restore,
+  // a bad sync), we discard that VM and cold-boot clean — a review is never
+  // failed by a warm miss, only ever made a little slower.
+  let sandbox!: Awaited<ReturnType<typeof bootSandbox>>
+  let commit!: string
+  let workDir!: string
+  let seedPlan: Awaited<ReturnType<typeof readSeedPlan>>
+  let bootedWarm = false
+
+  const snap = warmable ? await findWarmSnapshot(pt, url) : undefined
+  if (snap) {
+    let warmVm: Awaited<ReturnType<typeof bootSandbox>> | undefined
+    try {
+      warmVm = await bootSandbox(pt, snap)
+      const synced = await syncToRef(warmVm, target.ref)
+      sandbox = warmVm
+      commit = synced.commit
+      workDir = synced.workDir
+      seedPlan = await readSeedPlan(warmVm)
+      bootedWarm = true
+      console.log(`  sandbox: ${warmVm.sandboxId.slice(0, 24)}… (warm ❄→🔥)`)
+    } catch (err) {
+      // Discard the flaky warm VM so it can't leak, then fall to cold boot.
+      if (warmVm) await warmVm.kill().catch(() => {})
+      console.log(`  warm boot missed (${err instanceof Error ? err.message : "error"}), cold-booting`)
+    }
+  }
+  if (!bootedWarm) {
+    sandbox = await bootSandbox(pt)
+    console.log(`  sandbox: ${sandbox.sandboxId.slice(0, 24)}…`)
+    const cloned = await cloneRepo(sandbox, target)
+    commit = cloned.commit
+    workDir = cloned.workDir
+    seedPlan = undefined
+  }
 
   const startedAt = Date.now()
   const tokensBefore = tokenUsage()
   try {
-    const { commit, workDir } = await cloneRepo(sandbox, target)
     // Sweep before anything from the repo executes — a hostile postinstall
     // can't scrub evidence it never got to run ahead of.
     const sweep = await securitySweep(sandbox, workDir)
@@ -112,10 +155,16 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
 
     // Circuit breaker: one review can never spend more than this on replans.
     const perReviewCap = Number(process.env.GAUNTLET_MAX_TOKENS_PER_REVIEW) || 40_000
-    const executed = await buildAndRun(sandbox, context, workDir, () => {
-      const now = tokenUsage()
-      return now.input + now.output - tokensBefore.input - tokensBefore.output < perReviewCap
-    })
+    const executed = await buildAndRun(
+      sandbox,
+      context,
+      workDir,
+      () => {
+        const now = tokenUsage()
+        return now.input + now.output - tokensBefore.input - tokensBefore.output < perReviewCap
+      },
+      seedPlan,
+    )
 
     let probe: ProbeResult
     if (executed.plan.kind === "web") {
@@ -145,6 +194,14 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
     )
     const total = verdict.runs + verdict.deliversClaims + verdict.codeQuality
     console.log(`  ✔ ${total}/30${flagged ? " ⚠️ flagged" : ""} → ${path}`)
+
+    // After a green build, checkpoint the warm image for next time. Only when
+    // setup actually succeeded — never snapshot a broken environment.
+    if (warmable && executed.steps.length > 0 && executed.steps.every((s) => s.exitCode === 0)) {
+      const h = await lockfileHash(sandbox, workDir)
+      await saveWarmSnapshot(pt, sandbox, url, h, executed.plan)
+      console.log(`  ❄ warm snapshot saved (lock ${h})`)
+    }
     return { repoUrl: url, slug, total, verdict, flagged }
   } finally {
     // kill(), not close(): close() only drops the control channel and the VM

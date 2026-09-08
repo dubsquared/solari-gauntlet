@@ -58,9 +58,11 @@ export function parseRepoUrl(input: string): RepoTarget {
   }
 }
 
-export async function bootSandbox(pt: SolariClient): Promise<Sandbox> {
+export async function bootSandbox(pt: SolariClient, fromSnapshot?: string): Promise<Sandbox> {
   const sandbox = await pt.sandboxes.create({
     template: "base",
+    // Boot from a warm snapshot when given — node_modules already hot.
+    ...(fromSnapshot ? { fromSnapshot } : {}),
     // Rolling idle window, not a hard deadline — resets on every command.
     timeoutMs: 10 * 60_000,
   })
@@ -193,9 +195,14 @@ export async function buildAndRun(
   workDir: string,
   /** Per-review token circuit breaker: false stops further replan spend. */
   canSpendMore: () => boolean = () => true,
+  /** A known-good plan (from a warm snapshot) to try before spending tokens on planning. */
+  seedPlan?: RunPlan,
 ): Promise<ExecutedPlan> {
   const priorPlans: RunPlan[] = []
-  let plan = await planRun(context)
+  // Warm path: replay the cached plan first — zero planning tokens, and it
+  // self-heals via revisePlan if the repo changed enough to break it.
+  let plan = seedPlan ?? (await planRun(context))
+  if (seedPlan) console.log("  ♻ replaying cached plan (no planning tokens)")
   const steps: StepResult[] = []
 
   for (let attempt = 1; attempt <= MAX_PLAN_ATTEMPTS; attempt++) {
