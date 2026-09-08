@@ -168,8 +168,12 @@ Batch controls, tuned for a finance sign-off:
 | Sandbox | Clone + build + run untrusted code in a disposable microVM |
 | Port preview | Make the sandboxed server publicly reachable, zero config |
 | Cloud browser | Render the app for real: title, text, console errors, screenshot |
-
+| Desktop | Run GUI submissions on a real X11 screen and screenshot the window |
 | Session recording | The probe's full DOM-level replay, committed as audit evidence |
+
+Gauntlet is the rare tool that exercises **all three** Solari surfaces — a web
+app goes to the cloud browser, code goes to the sandbox, and a **GUI** goes to
+a desktop.
 
 ## Roadmap (from two multi-persona design reviews and a focus group)
 
@@ -247,8 +251,13 @@ Ranked by demand across the earlier stakeholder panel:
 - **Network egress monitor** — log what the submission talks to during
   install and run; a hiring submission phoning home is a finding.
 - **GitHub Action + `--concurrency N`** — batch reviews in parallel CI.
-- **Desktop sessions for GUI submissions** — same treatment via X11
-  screenshot and VNC stream; the plumbing is identical, `kind: "gui"`.
+- _(shipped)_ **Desktop / GUI review** — the planner emits `kind: "gui"` for
+  submissions whose deliverable is a window (Electron, Tkinter, PyQt, pygame,
+  a game). Gauntlet boots a Solari desktop, builds and launches the app on a
+  real X11 display, screenshots the screen, and Claude **vision** judges what
+  actually rendered. Verified live on a pygame snake game — the review
+  described the grid, snake head, and food it saw, and still docked code
+  quality for real bugs in the source.
 
 ## Reviewing hostile code, on purpose
 

@@ -1,0 +1,18 @@
+{
+  "repoUrl": "https://github.com/techwithtim/Snake-Game.git",
+  "reviewedCommit": "4965f76",
+  "sealedAt": "2026-09-08T01:24:49.548Z",
+  "sha256": {
+    "fingerprint.json": "7aa89abe0cdc58223ad15fa07186b6ebf7c8bfeb82568fda8652c3856e6a0601",
+    "invoice.json": "678aa6f41cd29974ae794e1dc7746db39a3f70ecd3ec4dc01a6848b154b45b80",
+    "report.html": "c57aece729dd0b976422f88918a1e76b28c02485256182747137f21f9191546e",
+    "report.md": "e04baa355f972ff03bafdf4bca4813cde79e3c4e762404417293f8ada043733b",
+    "screenshot.png": "229f61c86e18dd521a26ee8fc92686e67d92ab23d106deae9b8ae4d0fee7462d",
+    "verdict.json": "7f90d613aa87f4eaa36f749a474c2b62aabefe56114613e1d7f0bc33a50c5fb8"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "K2vq5zP/BMZVbsj8UO3bIhzdWUZrSBSe/ScGFbsdurZCb+iZpqHpsDVLyDh02FYheyLwMxn1VSdNBUJx48r6DQ=="
+  }
+}

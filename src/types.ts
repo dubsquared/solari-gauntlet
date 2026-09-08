@@ -1,11 +1,12 @@
 /** Shared shapes passed between the plan → execute → probe → verdict stages. */
 
 export interface RunPlan {
-  /** What kind of thing this repo is once running. */
-  kind: "web" | "cli"
+  /** What kind of thing this repo is once running. web = HTTP server;
+   *  cli = exits with output; gui = a desktop GUI window to look at. */
+  kind: "web" | "cli" | "gui"
   /** Shell commands run in order to install/build. Each runs via `sh -c`. */
   setup: string[]
-  /** Command that starts the app (web) or produces its output (cli). */
+  /** Command that starts the app (web/gui) or produces its output (cli). */
   run: string
   /** Command that runs the repo's own test suite; undefined when none exists. */
   test?: string
@@ -53,9 +54,11 @@ export interface ClaimCheck {
 }
 
 export interface ProbeResult {
-  kind: "web" | "cli"
+  kind: "web" | "cli" | "gui"
   /** Web: the public preview URL that was probed (query stripped). */
   url?: string
+  /** GUI: the live VNC stream URL of the desktop session. */
+  streamUrl?: string
   /** Web: page title. */
   title?: string
   /** Web: visible text of the landing page, truncated. */

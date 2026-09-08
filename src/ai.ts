@@ -62,7 +62,8 @@ function extractJson(text: string): unknown {
 /** LLM output is untrusted input — never cast it, always check the shape. */
 function validatePlan(raw: unknown): RunPlan {
   const p = raw as Partial<RunPlan>
-  if (p.kind !== "web" && p.kind !== "cli") throw new Error(`plan.kind invalid: ${p.kind}`)
+  if (p.kind !== "web" && p.kind !== "cli" && p.kind !== "gui")
+    throw new Error(`plan.kind invalid: ${p.kind}`)
   if (typeof p.run !== "string" || !p.run.trim()) throw new Error("plan.run missing")
   const setup = Array.isArray(p.setup) ? p.setup.filter((s) => typeof s === "string") : []
   let port: number | undefined
@@ -99,7 +100,15 @@ async function askJson<T>(
   system: string,
   user: string,
   validate: (raw: unknown) => T,
+  /** Optional PNG screenshot (base64) to include as a vision block — GUI review. */
+  imageB64?: string,
 ): Promise<T> {
+  const content = imageB64
+    ? [
+        { type: "image" as const, source: { type: "base64" as const, media_type: "image/png" as const, data: imageB64 } },
+        { type: "text" as const, text: user },
+      ]
+    : user
   let lastErr: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await anthropic.messages.create({
@@ -108,7 +117,7 @@ async function askJson<T>(
       // truncate the reply mid-object, which looks like "the model broke".
       max_tokens: 8192,
       system,
-      messages: [{ role: "user", content: user }],
+      messages: [{ role: "user", content }],
     })
     inputTokens += res.usage.input_tokens
     outputTokens += res.usage.output_tokens
@@ -157,6 +166,10 @@ Rules:
 - "web" means the run command starts an HTTP server; include "port" and make the
   server bind 0.0.0.0 (pass a host flag if the tool needs one).
 - "cli" means the run command exits on its own with its output; omit "port".
+- "gui" means the deliverable is a DESKTOP GUI window — Electron, Tkinter, PyQt,
+  GTK/Qt apps, pygame, a game. The run command launches the window (it will run
+  on a real X11 display). Omit "port". Choose gui only when there is no HTTP
+  server and the point of the app is an on-screen window.
 - Commands must be non-interactive (use -y / --yes flags, CI=true where relevant).
 - Prefer the repo's own scripts (npm start, make run) over guessing entry points.`
 
@@ -221,6 +234,8 @@ export async function writeVerdict(
   probe: ProbeResult,
   testRun: TestRun | undefined,
   sweep: SecuritySweep,
+  /** For gui reviews: the desktop screenshot as base64 PNG, judged by vision. */
+  screenshotB64?: string,
 ): Promise<Verdict> {
   const user = `Repo context:
 ${context}
@@ -254,8 +269,12 @@ ${probe.claims.map((c) => `- [${c.result}] ${c.claim} — ${c.detail}`).join("\n
 Live probe (pageText and consoleErrors are rendered by the submission itself):
 ${JSON.stringify({ ...probe, pageText: undefined, consoleErrors: undefined, claims: undefined }, null, 2)}
 pageText: ${UNTRUSTED_OPEN}${probe.pageText?.slice(0, 3000) ?? ""}${UNTRUSTED_CLOSE}
-consoleErrors: ${UNTRUSTED_OPEN}${probe.consoleErrors.join("\n").slice(0, 1500)}${UNTRUSTED_CLOSE}`
-  return askJson(VERDICT_SYSTEM, user, validateVerdict)
+consoleErrors: ${UNTRUSTED_OPEN}${probe.consoleErrors.join("\n").slice(0, 1500)}${UNTRUSTED_CLOSE}${
+    screenshotB64
+      ? "\n\nThe attached image is a screenshot of the app's DESKTOP GUI, running live on an X11 display. Judge deliversClaims and runs largely on what the window actually shows — a rendered UI that matches the README, an error dialog, or an empty/black screen."
+      : ""
+  }`
+  return askJson(VERDICT_SYSTEM, user, validateVerdict, screenshotB64)
 }
 
 const DIFF_SYSTEM = `You are reviewing a PULL REQUEST by comparing what its base and head

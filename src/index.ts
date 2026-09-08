@@ -10,7 +10,8 @@ import { SolariClient } from "@solarisdk/sdk"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { tokenUsage, writeVerdict } from "./ai.js"
+import { planRun, tokenUsage, writeVerdict } from "./ai.js"
+import { reviewGui } from "./desktop.js"
 import { probeCli, probeWeb, saveRawContext } from "./probe.js"
 import {
   appLog,
@@ -175,6 +176,39 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
       /* fingerprinting is best-effort */
     }
 
+    // Decide the kind up front so GUI submissions route to a desktop (a
+    // screen) instead of being run headless in the sandbox.
+    const plan0 = seedPlan ?? (await planRun(context))
+
+    if (plan0.kind === "gui") {
+      console.log(`  plan: ${plan0.notes}`)
+      console.log(`  🖥  GUI submission → Solari desktop`)
+      // Release the planning sandbox before booting the desktop — otherwise we
+      // hold two sessions at once and blow the plan's concurrency limit.
+      await sandbox.kill().catch(() => {})
+      const gui = await reviewGui(target, plan0, reportDir)
+      const probe: ProbeResult = {
+        kind: "gui",
+        consoleErrors: [],
+        screenshot: "screenshot.png",
+        streamUrl: gui.streamUrl,
+        output: gui.steps.map((s) => `$ ${s.cmd} (exit ${s.exitCode})`).join("\n"),
+      }
+      const b64 = Buffer.from(gui.screenshot).toString("base64")
+      const verdict = await writeVerdict(context, gui.steps, probe, undefined, sweep, b64)
+      const cost = {
+        tokens: tokenUsage().input + tokenUsage().output - tokensBefore.input - tokensBefore.output,
+        seconds: (Date.now() - startedAt) / 1000,
+      }
+      const executedGui = { plan: plan0, steps: gui.steps }
+      const { path, flagged } = await writeReport(
+        reportDir, url, commit, executedGui, probe, verdict, sweep, cost,
+      )
+      const total = verdict.runs + verdict.deliversClaims + verdict.codeQuality
+      console.log(`  ✔ ${total}/30${flagged ? " ⚠️ flagged" : ""} → ${path}`)
+      return { repoUrl: url, slug, total, verdict, flagged }
+    }
+
     // Circuit breaker: one review can never spend more than this on replans.
     const perReviewCap = Number(process.env.GAUNTLET_MAX_TOKENS_PER_REVIEW) || 40_000
     const executed = await buildAndRun(
@@ -185,7 +219,7 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
         const now = tokenUsage()
         return now.input + now.output - tokensBefore.input - tokensBefore.output < perReviewCap
       },
-      seedPlan,
+      plan0,
     )
 
     let probe: ProbeResult
