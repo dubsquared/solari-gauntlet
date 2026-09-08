@@ -63,6 +63,10 @@ export async function bootSandbox(pt: SolariClient, fromSnapshot?: string): Prom
     template: "base",
     // Boot from a warm snapshot when given — node_modules already hot.
     ...(fromSnapshot ? { fromSnapshot } : {}),
+    // Heavy repos (a Rust release build, a many-package npm monorepo) fill
+    // the default disk and fail with ENOSPC — an environment failure that
+    // would be misread as the code's. GAUNTLET_DISK_GB opts into more.
+    ...(process.env.GAUNTLET_DISK_GB ? { diskGb: Number(process.env.GAUNTLET_DISK_GB) } : {}),
     // Rolling idle window, not a hard deadline — resets on every command.
     timeoutMs: 10 * 60_000,
   })
@@ -117,7 +121,11 @@ async function timedStep(
   // both hit it). Persist the environment across steps through an env file,
   // captured INSIDE the step's own shell so its exports are what get saved.
   // Also pin HOME, which non-interactive shells leave unset.
-  const inner = `${cmd}; __rc=$?; export -p > ${ENV_FILE} 2>/dev/null; exit $__rc`
+  // pipefail: planners love `cmd 2>&1 | tail -N`, and a pipeline's status is
+  // the LAST command's — so a failed `cargo test | tail` reported exit 0 and
+  // "tests PASS", the self-healing loop stopped, and the report would have
+  // lied. With pipefail the failing component's status wins.
+  const inner = `set -o pipefail; ${cmd}; __rc=$?; export -p > ${ENV_FILE} 2>/dev/null; exit $__rc`
   // `.` is a POSIX special builtin: sourcing a MISSING file makes a
   // non-interactive shell exit 2 outright (2>/dev/null can't stop a shell
   // exit). Test for the file first, or step 1 dies before the command runs
