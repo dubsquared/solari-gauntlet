@@ -244,8 +244,15 @@ Security sweep of the working tree:
 - dependency audit: ${sweep.auditSummary ?? "not applicable"}
 - files matching secret patterns: ${sweep.secretHits.length === 0 ? "none" : sweep.secretHits.join(", ")}
 
+${
+  probe.claims?.length
+    ? `README claims checked by DRIVING the running app (strong evidence for deliversClaims — this is behavior, not prose):
+${probe.claims.map((c) => `- [${c.result}] ${c.claim} — ${c.detail}`).join("\n")}
+`
+    : ""
+}
 Live probe (pageText and consoleErrors are rendered by the submission itself):
-${JSON.stringify({ ...probe, pageText: undefined, consoleErrors: undefined }, null, 2)}
+${JSON.stringify({ ...probe, pageText: undefined, consoleErrors: undefined, claims: undefined }, null, 2)}
 pageText: ${UNTRUSTED_OPEN}${probe.pageText?.slice(0, 3000) ?? ""}${UNTRUSTED_CLOSE}
 consoleErrors: ${UNTRUSTED_OPEN}${probe.consoleErrors.join("\n").slice(0, 1500)}${UNTRUSTED_CLOSE}`
   return askJson(VERDICT_SYSTEM, user, validateVerdict)
@@ -307,6 +314,83 @@ ${UNTRUSTED_OPEN}${diffHunks.slice(0, 12000)}${UNTRUSTED_CLOSE}
 Repo context (from base):
 ${context.slice(0, 6000)}`
   return askJson(DIFF_SYSTEM, user, validateDiffVerdict)
+}
+
+/** One validated UI action. Selectors/values come from an untrusted README,
+ *  so the executor only ever acts on the submission's own isolated page. */
+export type ClaimAction =
+  | { op: "navigate"; path: string }
+  | { op: "click"; selector: string }
+  | { op: "fill"; selector: string; value: string }
+  | { op: "assertText"; text: string; present: boolean }
+
+export interface ClaimScript {
+  claim: string
+  actions: ClaimAction[]
+}
+
+const MAX_CLAIMS = 3
+const MAX_ACTIONS_TOTAL = 10 // hard ceiling across all claims
+
+/** Never trust the model's action shapes — whitelist ops and coerce fields. */
+function validateClaims(raw: unknown): ClaimScript[] {
+  const claims = (raw as { claims?: unknown }).claims
+  if (!Array.isArray(claims)) return []
+  const out: ClaimScript[] = []
+  let budget = MAX_ACTIONS_TOTAL
+  for (const c of claims.slice(0, MAX_CLAIMS)) {
+    const claim = String((c as { claim?: unknown }).claim ?? "").slice(0, 300)
+    if (!claim) continue
+    const rawActions = (c as { actions?: unknown }).actions
+    const actions: ClaimAction[] = []
+    if (Array.isArray(rawActions)) {
+      for (const a of rawActions) {
+        if (budget <= 0) break
+        const op = (a as { op?: unknown }).op
+        const sel = String((a as { selector?: unknown }).selector ?? "").slice(0, 300)
+        if (op === "navigate") {
+          const path = String((a as { path?: unknown }).path ?? "").slice(0, 300)
+          if (path) actions.push({ op, path })
+        } else if (op === "click" && sel) actions.push({ op, selector: sel })
+        else if (op === "fill" && sel)
+          actions.push({ op, selector: sel, value: String((a as { value?: unknown }).value ?? "").slice(0, 300) })
+        else if (op === "assertText") {
+          const text = String((a as { text?: unknown }).text ?? "").slice(0, 300)
+          if (text) actions.push({ op, text, present: (a as { present?: unknown }).present !== false })
+        } else continue
+        budget--
+      }
+    }
+    // A claim with no assertion can't pass or fail — drop it.
+    if (actions.some((a) => a.op === "assertText")) out.push({ claim, actions })
+  }
+  return out
+}
+
+const CLAIMS_SYSTEM = `A running web app is under review. From its README you extract up to
+${MAX_CLAIMS} CONCRETE claims that can be checked by interacting with the live UI, and for
+each you emit a short action script that ends in at least one assertion. Use ONLY these ops:
+  {"op":"navigate","path":"/some/path"}        (same-origin path only)
+  {"op":"click","selector":"CSS or text=Label"}
+  {"op":"fill","selector":"...","value":"..."}
+  {"op":"assertText","text":"...","present":true|false}
+Selectors are Playwright selectors (CSS, or text=…). Prefer claims a user could verify by
+clicking: "adding a todo shows it in the list", "the counter increments". Skip claims that
+need auth, external services, or data you don't have. If nothing is UI-checkable, return an
+empty list — never invent a claim. ${UNTRUSTED_RULES}
+Reply with ONLY JSON: {"claims":[{"claim":"...","actions":[...]}]}`
+
+export async function extractClaims(context: string, pageText: string): Promise<ClaimScript[]> {
+  const user = `Repo context (README etc.):
+${context.slice(0, 6000)}
+
+Text the running landing page actually rendered:
+${UNTRUSTED_OPEN}${pageText.slice(0, 2000)}${UNTRUSTED_CLOSE}`
+  try {
+    return await askJson(CLAIMS_SYSTEM, user, validateClaims)
+  } catch {
+    return [] // claim extraction is best-effort; never fails a review
+  }
 }
 
 /** Rolling Anthropic token usage for this process — cost accounting per review. */

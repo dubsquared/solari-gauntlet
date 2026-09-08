@@ -43,6 +43,15 @@ export interface PageVisit {
   errors: number
 }
 
+/** One README claim, checked by driving the running app. */
+export interface ClaimCheck {
+  claim: string
+  /** verified = all its assertions passed; failed = an assertion was false;
+   *  unverified = couldn't be exercised (missing element, timeout). */
+  result: "verified" | "failed" | "unverified"
+  detail: string
+}
+
 export interface ProbeResult {
   kind: "web" | "cli"
   /** Web: the public preview URL that was probed (query stripped). */
@@ -63,6 +72,8 @@ export interface ProbeResult {
   replayEvents?: number
   /** Web: replay file name relative to the report dir. */
   replayFile?: string
+  /** Web: README claims checked by driving the app, when --verify-claims is on. */
+  claims?: ClaimCheck[]
   /** CLI: captured output of the run command. */
   output?: string
   /** Web: how the app answered deliberately hostile requests. */

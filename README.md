@@ -91,6 +91,13 @@ Beyond run-and-screenshot, every review also:
 - **walks beyond the front door**: same-origin pages visited with per-page
   console-error counts, landing-page load time, and a mobile-viewport
   screenshot;
+- **checks the README's claims by driving the app** (`--verify-claims`):
+  Claude extracts up to three concrete UI claims and emits a bounded,
+  whitelisted action script (navigate / click / fill / assertText — validated
+  in code, hard 10-step cap, 10s per step, same-origin only) that the cloud
+  browser executes live. Each claim comes back **verified / failed /
+  unverified** — the difference between "it renders" and "it works" — and the
+  checks happen while the session is recording, so they're in the replay;
 - **generates three interview questions** grounded in the specific code —
   built to distinguish "wrote it and understands it" from "generated it and
   shipped";

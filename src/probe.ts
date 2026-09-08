@@ -4,8 +4,9 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import type { Sandbox } from "@solarisdk/sdk"
 
+import { extractClaims, type ClaimScript } from "./ai.js"
 import type { ExecutedPlan } from "./sandbox.js"
-import type { HostileCheck, PageVisit, ProbeResult } from "./types.js"
+import type { ClaimCheck, HostileCheck, PageVisit, ProbeResult } from "./types.js"
 
 const READY_TIMEOUT_MS = 90_000
 
@@ -36,6 +37,8 @@ export async function probeWeb(
   sandbox: Sandbox,
   executed: ExecutedPlan,
   reportDir: string,
+  /** When set, extract README claims and check them by driving the app. */
+  verifyClaims?: { context: string },
 ): Promise<ProbeResult> {
   const port = executed.plan.port ?? 3000
   const { url } = await sandbox.previewUrl(port)
@@ -78,6 +81,23 @@ export async function probeWeb(
     // fails distinguishes a senior's error handling from a tutorial's.
     const hostile = await hostileProbe(url)
 
+    // Interactive claim verification: does the app DO what the README says?
+    // Runs while the session is open and still recording, so every checked
+    // claim is in the replay. Best-effort — never fails the probe.
+    let claims: ClaimCheck[] | undefined
+    if (verifyClaims) {
+      const scripts = await extractClaims(verifyClaims.context, pageText)
+      if (scripts.length) {
+        claims = await runClaimChecks(page, url, scripts)
+        const v = claims.filter((c) => c.result === "verified").length
+        const f = claims.filter((c) => c.result === "failed").length
+        console.log(`  🔎 claims: ${v} verified, ${f} failed, ${claims.length - v - f} unverified`)
+        // Re-load the landing page so the mobile shot below is the real app,
+        // not whatever state the claim script navigated to.
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch(() => {})
+      }
+    }
+
     // Mobile viewport: half the panel's users will open the submission on a
     // phone-width window first.
     await page.setViewportSize({ width: 390, height: 844 })
@@ -96,6 +116,7 @@ export async function probeWeb(
       loadMs,
       extraPages,
       hostile,
+      claims,
     }
   } finally {
     // browser.close() failing must not leak the client's loopback proxy —
@@ -154,6 +175,58 @@ async function crawl(page: Page, landingUrl: string): Promise<PageVisit[]> {
     /* crawling is best-effort */
   }
   return visits
+}
+
+/** Thrown when an assertText is false (claim FAILED) vs. an action that
+ *  couldn't run at all (claim UNVERIFIED). */
+class AssertionFailed extends Error {}
+
+const STEP_TIMEOUT = 10_000
+
+/**
+ * Execute each claim's bounded action script against the running app. Actions
+ * only ever touch the submission's own isolated page; navigate is clamped to
+ * same-origin so a model-emitted path can't send the browser off-site.
+ */
+async function runClaimChecks(page: Page, baseUrl: string, scripts: ClaimScript[]): Promise<ClaimCheck[]> {
+  const origin = new URL(baseUrl).origin
+  const out: ClaimCheck[] = []
+  for (const s of scripts) {
+    // Fresh state per claim: reload the app before exercising it.
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: STEP_TIMEOUT }).catch(() => {})
+    try {
+      for (const a of s.actions) {
+        if (a.op === "navigate") {
+          const dest = new URL(a.path, origin)
+          if (dest.origin !== origin) throw new Error("cross-origin navigate blocked")
+          await page.goto(dest.toString(), { waitUntil: "domcontentloaded", timeout: STEP_TIMEOUT })
+        } else if (a.op === "click") {
+          await page.locator(a.selector).first().click({ timeout: STEP_TIMEOUT })
+        } else if (a.op === "fill") {
+          await page.locator(a.selector).first().fill(a.value, { timeout: STEP_TIMEOUT })
+        } else if (a.op === "assertText") {
+          await page.waitForTimeout(300)
+          const body = await page.locator("body").innerText()
+          const has = body.includes(a.text)
+          if (has !== a.present)
+            throw new AssertionFailed(
+              `expected "${a.text.slice(0, 60)}" to be ${a.present ? "present" : "absent"}`,
+            )
+        }
+      }
+      out.push({ claim: s.claim, result: "verified", detail: "all assertions held when the app was driven" })
+    } catch (err) {
+      if (err instanceof AssertionFailed)
+        out.push({ claim: s.claim, result: "failed", detail: err.message })
+      else
+        out.push({
+          claim: s.claim,
+          result: "unverified",
+          detail: `couldn't exercise it: ${(err instanceof Error ? err.message : String(err)).slice(0, 120)}`,
+        })
+    }
+  }
+  return out
 }
 
 const TRACE_MARKERS = [/\bat .+\.[cm]?js:\d+/, /Traceback \(most recent call last\)/, /\.py", line \d+/]

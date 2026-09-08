@@ -60,6 +60,8 @@ const strictCheck = boolFlag("--strict-check", rest)
 const warm = boolFlag("--warm", rest) || process.env.GAUNTLET_WARM === "1"
 const noWarm = boolFlag("--no-warm", rest)
 const warmEnabled = warm && !noWarm
+// Interactive claim verification: drive the app to check its README's claims.
+const verifyClaims = boolFlag("--verify-claims", rest)
 // Watch mode: stand and re-review whenever a target's commit changes.
 const watch = boolFlag("--watch", rest)
 const interval = Math.max(60, Math.round(numFlag("--interval", rest, 300))) // seconds, floor 60
@@ -173,7 +175,7 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
     let probe: ProbeResult
     if (executed.plan.kind === "web") {
       try {
-        probe = await probeWeb(sandbox, executed, reportDir)
+        probe = await probeWeb(sandbox, executed, reportDir, verifyClaims ? { context } : undefined)
       } catch (err) {
         // Server never came up — judge the failure instead of crashing.
         probe = {

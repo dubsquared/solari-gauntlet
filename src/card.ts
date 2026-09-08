@@ -87,6 +87,16 @@ ${
         .join("")}</table>`
     : ""
 }
+${
+  probe.claims?.length
+    ? `<h2>README claims, checked by driving the app</h2><ul>${probe.claims
+        .map(
+          (c) =>
+            `<li>${{ verified: "✅", failed: "❌", unverified: "❔" }[c.result]} <b>${c.result}</b> — ${esc(c.claim)} <small>(${esc(c.detail)})</small></li>`,
+        )
+        .join("")}</ul>`
+    : ""
+}
 ${verdict.interviewQuestions.length ? `<h2>Ask the candidate</h2><ol>${verdict.interviewQuestions.map((q) => `<li>${esc(q)}</li>`).join("")}</ol>` : ""}
 ${shot ? `<h2>What the cloud browser saw${probe.loadMs ? ` <span class="meta">(${probe.loadMs}ms to DOM)</span>` : ""}</h2><img src="${shot}" alt="screenshot">` : ""}
 ${mobile ? `<details><summary>Mobile viewport</summary><img src="${mobile}" alt="mobile screenshot" style="max-width:390px"></details>` : ""}
