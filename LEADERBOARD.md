@@ -1,6 +1,8 @@
 # The contest, run through the contest reviewer
 
-Harry said *"we review every build that tags us."* Gauntlet's whole purpose is reviewing a pile of hiring submissions — so here is the live field of the Pinetree/Solari challenge (every public submission repo found tagging @harrychow_ and @getsolari on X as of 2026-09-02), each cloned into a Solari sandbox, run, probed, and scored by the same rubric. Including this repo, which gets no special treatment.
+Harry said *"we review every build that tags us."* Gauntlet's whole purpose is reviewing a pile of hiring submissions — so here is the field of the Pinetree/Solari challenge: every public submission repo found tagging @harrychow_ and @getsolari on X as of 2026-09-02, each cloned into a Solari sandbox, run, probed, and scored by the same rubric. This repo is included and gets no special treatment.
+
+This table is the **contest field only**. Gauntlet has also reviewed real production repos (Tesla's `vehicle-command`, ruvnet's `ruv-FANN`) and demo fixtures; those appear on the [live Arena](https://dubsquared.github.io/solari-gauntlet/), not here. Submitted after the snapshot date? Open an issue and you'll be added.
 
 | Rank | Submission | Score | What the review observed |
 | --- | --- | --- | --- |
@@ -14,5 +16,6 @@ Harry said *"we review every build that tags us."* Gauntlet's whole purpose is r
 
 - Scores measure **what a sandboxed reviewer could verify**, not effort or ambition. Needing live keys, Docker, or external services caps "Runs" by design — including for this repo.
 - Integrity signals weigh heaviest: a README claim contradicted by the repo's own code or failing tests costs more than a missing feature.
+- Integrity *accusations* clear the highest bar. A suggestive word in a repo (fabricate, stub, scorecard) is never treated as an admission — it's as likely to be fixing the problem as committing it — and ambiguous intent is reported as "worth clarifying with the maintainer," never as a red flag.
 - Reviews are point-in-time (commit SHA in each report). Ship a fix and I'll re-run — a review typically takes one to four minutes and 10–40k tokens.
 - To every builder here: these are strong projects, and an LLM rubric is not the last word. Corrections welcome — open an issue and Gauntlet re-reviews.

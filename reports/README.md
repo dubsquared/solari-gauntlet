@@ -14,9 +14,6 @@ Real submissions to the Pinetree/Solari challenge, ranked in
   treatment (a reviewer that scores itself 30/30 is one you can't trust).
 - `AlexanderLuzDH-...forklift.../`, `elMonsi-solari-agent-kit/`,
   `SaddyMalingu-previewguard/`, `itw-code-solari-cookbook/` — competitors.
-- `mdn-beginner-html-site-styled-pr114/` — a PR **behavioral-diff** review
-  (base and head both built and probed; `base/` and `head/` hold each side's
-  screenshots).
 
 ## Real production code
 Reviewed to prove the tool handles serious repos, not just demos. Same
@@ -43,10 +40,27 @@ against code whose contents you can already picture:
 - `techwithtim-Snake-Game/` — a pygame game, reviewed as a **GUI** on a
   Solari desktop: vision judged the rendered window, and computer-use drove
   it to check the README's claims.
+- `mdn-beginner-html-site-styled-pr114/` — a **PR behavioral-diff** review
+  of a real pull request: base and head both built and probed in one
+  sandbox, with each side's screenshots under `base/` and `head/`.
 
-Each review directory is self-contained: `report.md` (human), `report.html`
-(shareable card with the embedded replay), `verdict.json` / `invoice.json`
-(machine-readable), `fingerprint.json` (MinHash signature for clone
-detection), screenshots, and `manifest.json` (ed25519-signed hashes —
-`npm run verify -- reports/<dir>` proves nothing changed since review).
-`context.txt`, the raw planner context, is not committed.
+## What each review directory contains
+
+`report.md` (human-readable), `report.html` (a shareable card with the
+session replay embedded), `verdict.json` and `invoice.json`
+(machine-readable score and cost), `fingerprint.json` (a MinHash signature
+for clone detection), screenshots (web reviews add a mobile viewport and an
+rrweb `replay.ndjson`), and `manifest.json` — ed25519-signed hashes of every
+artifact; `npm run verify -- reports/<dir>` proves nothing changed since the
+review. `context.txt`, the raw planner context, is not committed.
+
+## Top-level files
+
+- `arena.html` — the scoreboard across every review; also served as the
+  landing page of the live site.
+- `index.md` — the ranked table from the most recent multi-repo batch.
+- `ledger.ndjson` — an append-only line per review (score, load time, test
+  status, cost), the regression memory across re-reviews.
+- `similarity.md` — pairwise clone detection across all fingerprinted repos.
+- `smoke.png` — the screenshot from `npm run smoke`, proving the Solari
+  pipeline end to end without an Anthropic key.
