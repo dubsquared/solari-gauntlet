@@ -14,5 +14,5 @@ Harry said *"we review every build that tags us."* Gauntlet's whole purpose is r
 
 - Scores measure **what a sandboxed reviewer could verify**, not effort or ambition. Needing live keys, Docker, or external services caps "Runs" by design — including for this repo.
 - Integrity signals weigh heaviest: a README claim contradicted by the repo's own code or failing tests costs more than a missing feature.
-- Reviews are point-in-time (commit sha in each report). Ship a fix and I'll re-run — a review costs ~90 seconds and ~11k tokens.
+- Reviews are point-in-time (commit SHA in each report). Ship a fix and I'll re-run — a review typically takes one to four minutes and 10–40k tokens.
 - To every builder here: these are strong projects, and an LLM rubric is not the last word. Corrections welcome — open an issue and Gauntlet re-reviews.

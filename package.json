@@ -26,5 +26,7 @@
     "@types/node": "^26.4.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
-  }
+  },
+  "license": "MIT",
+  "author": "Wayne A. Walls"
 }

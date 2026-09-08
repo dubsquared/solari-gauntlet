@@ -6,11 +6,12 @@
 
 **🏟 Live scoreboard: [dubsquared.github.io/solari-gauntlet](https://dubsquared.github.io/solari-gauntlet/)** — every review, ranked, each row linking to its full evidence card and session replay.
 
-Point Gauntlet at any GitHub repo. It clones the repo into a fresh Solari
-sandbox, has Claude figure out how to install and run it (and re-plan when a
-build breaks), exposes the running app on a public preview URL, opens that URL
-in a Solari cloud browser, screenshots it, and writes a scored review — does it
-run, does it do what the README claims, is the code any good.
+Point Gauntlet at any GitHub repo or pull request. It clones the repo into a
+fresh Solari sandbox, has Claude figure out how to install and run it (and
+replan when a build breaks), runs the repo's own tests, exposes a web app on a
+public preview URL and probes it through a Solari cloud browser — or launches a
+GUI app on a Solari desktop — and writes a scored, signed review: does it run,
+does it do what the README claims, is the code any good.
 
 Built for a hiring challenge that promised *"we review every build that tags
 us."* This is that reviewer. Every submission runs the gauntlet — including
@@ -23,32 +24,79 @@ Real output from a real run:
 ```console
 $ npm start -- https://github.com/heroku/node-js-getting-started
 
-▶ https://github.com/heroku/node-js-getting-started
-  sandbox: ZGVza3RvcC1wb29sLWktMDZjMWYz...
-  plan (attempt 1): Express app; PORT env var sets listening port, default binds all interfaces
+▶ https://github.com/heroku/node-js-getting-started.git
+  sandbox: ZGVza3RvcC1wb29sLWktMDZj…
+  plan (attempt 1): Simple Express/EJS app, no DB or credentials needed; listens on PORT, binds all interfaces.
     $ npm install → exit 0
-    $ PORT=3000 node index.js (background)
-  preview: https://...preview.getsolari.com
-  screenshot saved, title: "Node.js Getting Started on Heroku"
-  ✔ 22/30 → reports/heroku-node-js-getting-started/report.md
+    $ npm test → tests PASS
+    $ PORT=3000 node index.js (background, alive after 4s)
+  preview: https://…preview.getsolari.com
+  screenshot saved, title: "Node.js Getting Started on Heroku" (255ms to DOM)
+  replay saved: 12 rrweb events
+  ✔ 19/30 → reports/heroku-node-js-getting-started/report.md
+
+batch: 1 reviewed, 0 failed · 74s · 10k tokens
 ```
 
-Two reviews from live runs are committed in this repo, screenshots included:
+## What it has reviewed
 
-- [heroku/node-js-getting-started → 22/30](reports/heroku-node-js-getting-started/report.md)
-  — the reviewer flagged the Node engine mismatch, the npm audit findings,
-  and that the db-backed page went unverified.
-- [mdn/beginner-html-site-styled → 21/30](reports/mdn-beginner-html-site-styled/report.md)
-  — it noticed the repo is an unmodified tutorial clone and scored it
-  accordingly as a hiring submission. That's the judgment the tool is for.
-- [dubsquared/solari-gauntlet → 18/30](reports/dubsquared-solari-gauntlet/report.md)
-  — yes, it reviewed itself. It couldn't observe its own pipeline live
-  (no real API keys inside a reviewer's sandbox), so it refused to award
-  "Runs" points on faith — and along the way the self-healing planner hit
-  the sandbox's Node 18, diagnosed the engine mismatch, and upgraded Node
-  inside the VM to keep going. It flagged the missing `engines` field as
-  real onboarding friction; that fix is now committed. A reviewer that
-  gives itself 30/30 is a reviewer you can't trust.
+Every review below is committed in `reports/`, with screenshots, a session
+replay where there is one, and a signed evidence manifest. Scores are
+point-in-time and the rubric has tightened over the project's life, so the
+[live Arena](https://dubsquared.github.io/solari-gauntlet/) is the source of
+truth for current numbers.
+
+**Real production code**
+
+- [teslamotors/vehicle-command → 24/30](reports/teslamotors-vehicle-command/report.md)
+  — the highest score to date. Gauntlet installed a Go toolchain itself
+  through three self-healing replans, built the project clean, and ran the
+  full test suite across roughly a dozen packages, all green. Its interview
+  questions cite the real ECDH and Schnorr session code. It also flagged the
+  tree as an exact match for the upstream repo — correct, because it is —
+  which is the authenticity check working as designed.
+- [ruvnet/ruv-FANN → 17/30](reports/ruvnet-ruv-FANN/report.md)
+  — a Rust neural-network library. Gauntlet stood up a Rust toolchain, built
+  the core crate clean in release mode, and ran its suite: 173 tests, 0
+  failures. The README's swarm and forecasting claims couldn't be verified
+  from a core-crate build, so those scored low, and two "secret pattern"
+  hits on agent role-definition docs were reported as worth clarifying with
+  the maintainer rather than as findings.
+- [teslamotors/light-show → 14/30](reports/teslamotors-light-show/report.md)
+  — a data repo with one runnable script. The script hung three times; the
+  cause was `validator.py` calling `input()` even on success, so it blocks
+  forever when run non-interactively. Gauntlet killed the hang, diagnosed
+  it, retried with piped stdin, finished the review, and wrote the defect up
+  as a finding.
+
+**The contest field** — every public submission to the challenge, ranked in
+[LEADERBOARD.md](LEADERBOARD.md), this repo included:
+
+- [dubsquared/solari-gauntlet → 17/30](reports/dubsquared-solari-gauntlet/report.md)
+  — yes, it reviewed itself. It couldn't observe its own pipeline live (no
+  real API keys inside a reviewer's sandbox), so it refused to award "Runs"
+  points on faith. Along the way the planner hit the sandbox's Node 18,
+  diagnosed the engine mismatch, and upgraded Node inside the VM to keep
+  going; it flagged the missing `engines` field, and that fix is committed.
+  A reviewer that gives itself 30/30 is a reviewer you can't trust.
+- Competitors at 16, 14, 14, and 12 — see the leaderboard for what each
+  review observed.
+
+**Fixtures and modes**
+
+- [heroku/node-js-getting-started → 19/30](reports/heroku-node-js-getting-started/report.md)
+  — stock boilerplate, scored as such; flags the orphaned `db.ejs`, the stock
+  test file, and the Node engine mismatch.
+- [mdn/beginner-html-site-styled → 19/30](reports/mdn-beginner-html-site-styled/report.md)
+  — an unmodified tutorial clone, and the review says so.
+- [techwithtim/Snake-Game → 15/30](reports/techwithtim-Snake-Game/report.md)
+  — a **GUI** review on a Solari desktop. Vision saw the grid, snake, and
+  food; computer-use verified "Right arrow moves the snake right" and
+  correctly failed "Down arrow moves it down"; code quality was docked for
+  real bugs in the source.
+- [mdn/beginner-html-site-styled#114 → improvement](reports/mdn-beginner-html-site-styled-pr114/report.md)
+  — a **PR behavioral-diff** review: base and head both built and probed in
+  one sandbox, delta measured, before/after screenshots.
 
 ## Why this needs Solari
 
@@ -68,19 +116,20 @@ GitHub URL
    │
    ▼
 ┌─────────────────────────── Solari sandbox ───────────────────────────┐
-│  git clone → gather context (tree, README, manifests)                │
+│  git clone → security sweep → gather context (tree, README, source)  │
 │  Claude plans install/run  ──►  execute  ──►  on failure, replan ↺   │
-│  web app? start it, expose the port on a public preview URL          │
+│  run the repo's own tests · web app? expose it on a preview URL      │
 └──────────────────────────────────────────────────────────────────────┘
-   │
-   ▼
-┌────────────────────────  Solari cloud browser ───────────────────────┐
-│  open the preview URL · capture title, text, console errors          │
-│  full-page screenshot                                                │
-└──────────────────────────────────────────────────────────────────────┘
-   │
-   ▼
-Claude scores what actually happened → reports/<repo>/report.md
+   │                                              │
+   ▼ web                                          ▼ gui
+┌──────────── Solari cloud browser ────────────┐ ┌──── Solari desktop ────┐
+│  open the preview URL · title, text, console │ │  launch on X11         │
+│  errors · crawl · hostile-input probe        │ │  screenshot the window │
+│  screenshot · rrweb replay · claim checks    │ │  computer-use drives it│
+└──────────────────────────────────────────────┘ └────────────────────────┘
+   │                                              │
+   ▼                                              ▼
+Claude scores what actually happened → reports/<repo>/ (signed)
 ```
 
 Beyond run-and-screenshot, every review also:
@@ -165,6 +214,11 @@ Batch controls, tuned for a finance sign-off:
 - `--budget-tokens N` (or `GAUNTLET_MAX_TOKENS`) — hard ceiling on Anthropic
   tokens for the whole batch. Crossing it skips the remaining repos loudly
   and exits nonzero; nothing is ever reviewed on a blown budget.
+- `GAUNTLET_MAX_TOKENS_PER_REVIEW` (default 40000) — a per-review circuit
+  breaker that stops further replans once one review has spent that much.
+- `GAUNTLET_DISK_GB` — a bigger sandbox disk for heavy repos; a Rust release
+  build or a many-package monorepo can fill the default and fail with
+  ENOSPC, an environment failure that would otherwise read as the code's.
 - Every report carries its own wall-time + token cost line, and the batch
   prints a totals line at the end.
 - `GAUNTLET_MODEL` overrides the reviewer model (default `claude-sonnet-5`).
@@ -183,9 +237,12 @@ Gauntlet is the rare tool that exercises **all three** Solari surfaces — a web
 app goes to the cloud browser, code goes to the sandbox, and a **GUI** goes to
 a desktop.
 
-## Roadmap (from two multi-persona design reviews and a focus group)
+## What shipped, and what's still on the roadmap
 
-Shipped since the focus group:
+Every feature below came out of one of three multi-agent reviews — a 15-agent
+adversarial hardening pass, a seven-persona stakeholder panel, and a
+six-persona focus group — and was verified against the real Solari API.
+Shipped:
 
 - **PR behavioral-diff mode** — give it a pull-request URL
   (`.../pull/123`) and it clones once, fetches both sides (fork-safe), runs
@@ -224,10 +281,10 @@ Shipped since the focus group:
   a wash, which is why it's off by default.
 
 - **Watch mode** (`--watch`) — a standing reviewer. It polls each target's
-  commit sha every `--interval` seconds (floor 60, default 300) and
-  re-reviews **only when the sha changes** — an idle poll is a single free
+  commit SHA every `--interval` seconds (floor 60, default 300) and
+  re-reviews **only when the SHA changes** — an idle poll is a single free
   GitHub call, so spend tracks real activity, not wall-clock. Pairs naturally
-  with `--warm` (same repo, over and over) and honours `--budget-tokens` as a
+  with `--warm` (same repo, over and over) and honors `--budget-tokens` as a
   cumulative ceiling that stops the whole watch, so it can never run unbounded.
   Works on repo and PR targets; rebuilds the Arena after every new review.
 - **Cross-batch clone detection** (`npm run similarity`) — every repo review
@@ -246,26 +303,28 @@ Shipped since the focus group:
   committed `verdict.json` files: no sandbox, no API, no tokens. Rebuilt
   automatically after any batch or watch review.
 
-Ranked by demand across the earlier stakeholder panel:
+- **Desktop / GUI review** — the planner emits `kind: "gui"` for submissions
+  whose deliverable is a window (Electron, Tkinter, PyQt, pygame, a game).
+  Gauntlet boots a Solari desktop, builds and launches the app on a real X11
+  display, screenshots the screen, and Claude **vision** judges what actually
+  rendered. Verified live on a pygame snake game.
+- **Failure-mode probe** — a missing route and a malformed JSON POST, with
+  status codes and stack-trace leaks recorded. "Does it survive hostile
+  input" is the senior-vs-tutorial filter.
+- **Harness self-test** (`npm run selftest`) — commands designed to fail the
+  sneaky ways (a failing pipeline behind `| tail`, a stdin hang, `source`
+  under a non-bash shell, exports that used to vanish between steps),
+  asserting the harness reports each one honestly. Every case is a bug that
+  shipped once.
 
-- **Failure-mode probe** — POST malformed JSON, request missing routes, send
-  oversized bodies; record status codes and stack-trace leaks. "Does it
-  survive hostile input" is the senior-vs-tutorial filter.
-- **Interactive claim verification** — Claude extracts checkable claims from
-  the README ("add a todo, it persists") and emits a bounded action script
-  the probe executes: fill, click, assert, reload. Renders ≠ works.
-- **Cross-batch plagiarism detection** — embed and compare submissions;
-  template clones already get caught, copies of each other don't yet.
+Still on the roadmap, from the same reviews:
+
 - **Network egress monitor** — log what the submission talks to during
   install and run; a hiring submission phoning home is a finding.
-- **GitHub Action + `--concurrency N`** — batch reviews in parallel CI.
-- _(shipped)_ **Desktop / GUI review** — the planner emits `kind: "gui"` for
-  submissions whose deliverable is a window (Electron, Tkinter, PyQt, pygame,
-  a game). Gauntlet boots a Solari desktop, builds and launches the app on a
-  real X11 display, screenshots the screen, and Claude **vision** judges what
-  actually rendered. Verified live on a pygame snake game — the review
-  described the grid, snake head, and food it saw, and still docked code
-  quality for real bugs in the source.
+- **Org-level spend ledger** — monthly token and sandbox-minute envelopes with
+  threshold alerts, so "on every PR in the org" has a number attached.
+- **Human-gated rubric calibration** — learn from reviewer overrides without
+  letting the model tune itself unsupervised.
 
 ## Reviewing hostile code, on purpose
 
@@ -276,14 +335,22 @@ the submission is malicious:
   happen in a disposable Solari microVM that is killed after the review. No
   API keys are ever exported into the sandbox.
 - **The repo URL is parsed, not interpolated.** Only
-  `https://github.com/<owner>/<repo>` passes validation, and the clone goes
-  through argv (`git clone -- <url>`), so neither shell metacharacters nor
-  git option injection reach a shell.
+  `https://github.com/<owner>/<repo>`, a `/tree/<branch>/<path>` deep link, or
+  a `/pull/<n>` URL passes validation, and the clone goes through argv
+  (`git clone -- <url>`), so neither shell metacharacters nor git option
+  injection reach a shell.
 - **Repo-derived text is fenced off in prompts.** Everything the submission
   controls (README, file tree, build output, rendered page text, console
   errors) reaches Claude inside `<untrusted_submission_content>` tags that
-  both system prompts are instructed to treat as data — and to report as a
-  red flag if it tries to give instructions.
+  every prompt is instructed to treat as data — and to report as a red flag
+  if it tries to give instructions.
+- **Integrity claims clear the highest bar.** A suggestive word in repo text
+  (fabricate, stub, scorecard) is never turned into an accusation: such text
+  is at least as likely to be fixing the problem as committing it. The
+  planner and the verdict must quote it with its surrounding purpose and,
+  when intent is ambiguous, call it "worth clarifying with the maintainer" —
+  never an "admission" — and it cannot move the scores. A false accusation
+  is worse than a missed one.
 - **Scores get a deterministic cross-check.** A verdict claiming a clean run
   that the step transcript contradicts — or suspiciously perfect scores —
   marks the report *flagged for manual review*. Prompt injection against
@@ -299,13 +366,23 @@ the submission is malicious:
 
 ## Honest limitations
 
-- Reviews are sequential; parallelizing across sandboxes is a `Promise.all`
-  away but makes the console output unreadable.
-- A malicious repo can't escape the sandbox, but it can waste your Solari
-  minutes until the 10-minute idle timeout kills it.
+- Reviews run sequentially by default; `--concurrency N` parallelizes up to
+  your plan's sandbox limit, at the cost of interleaved console output.
+- A malicious repo can't escape the sandbox, but it can waste sandbox
+  minutes: each step is capped at five minutes and the VM at a ten-minute
+  idle window, and that's the ceiling, not zero.
 - Prompt injection defenses reduce risk; they don't zero it. The
   flagged-for-review mechanism exists because a sufficiently clever
   submission may still nudge a score.
+- The verdict can misread intent. It once turned a repo's own audit and
+  hardening work — an ADR removing fabricated metrics — into an accusation
+  of fabricating them. That review was caught before publication and a
+  guardrail now forbids the framing, but it reduces the risk rather than
+  removing it: read the cited lines yourself before publishing any
+  integrity concern about someone's work.
+- Some repos can't be judged fairly from a sandbox at all — anything that
+  needs live credentials, Docker, a GPU, or a very large build. Those cap
+  "Runs" by design, and a low score there means "unverified," not "bad."
 - The 0–10 scores are an LLM's judgment, calibrated by rubric anchors and
   grounded in source excerpts the model actually reads. They rank a pile of
   submissions well; they are not a substitute for reading the finalists.
