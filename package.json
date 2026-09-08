@@ -14,7 +14,8 @@
     "arena": "tsx src/arena.ts",
     "similarity": "tsx src/similarity.ts",
     "typecheck": "tsc --noEmit",
-    "smoke:desktop": "tsx src/desktop-smoke.ts"
+    "smoke:desktop": "tsx src/desktop-smoke.ts",
+    "selftest": "tsx src/selftest.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

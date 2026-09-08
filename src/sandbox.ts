@@ -108,7 +108,7 @@ export async function withWatchdog<T>(p: Promise<T>, ms: number, what: string): 
  */
 const ENV_FILE = "/tmp/gauntlet.env"
 
-async function timedStep(
+export async function timedStep(
   sandbox: Sandbox,
   workDir: string,
   cmd: string,
