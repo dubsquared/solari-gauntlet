@@ -1,5 +1,7 @@
 # Gauntlet
 
+![Gauntlet — an AI reviewer for code submissions, built on Solari](assets/showcase.png)
+
 **An AI reviewer for code submissions, built on [Solari](https://getsolari.com).**
 
 Point Gauntlet at any GitHub repo. It clones the repo into a fresh Solari
