@@ -1,0 +1,17 @@
+{
+  "repoUrl": "https://github.com/teslamotors/light-show.git",
+  "reviewedCommit": "9f94951",
+  "sealedAt": "2026-09-08T02:48:03.579Z",
+  "sha256": {
+    "fingerprint.json": "e68ef68713e005c788c7e7d8e558bf7ddac83a9ecd1195cf4df1d8696a144c6d",
+    "invoice.json": "f0088235b80fa4aaaedf86d968e8880a819e57ba52cf5d0bf8dce197ccfd103a",
+    "report.html": "03ab309ec36d494b5ca0bc09a71b673bf6b6ed9e47b9535aabd8801d6d35f0c7",
+    "report.md": "1a3c2250f95db124df305e56bf94f8d9d381b2b86109c0bf787eb25cce4aa7d1",
+    "verdict.json": "5cdaa571099505ffe300bd8eb4742dc745cf6e0415ec7ee763cc0bf198c0450b"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "RXUwyl162NBGk0joK67GKtTNVwi8GMGCtkHxfMcCp6nDXL8MxQB3CjZbeHDhPeBLv75h98I2aB+QmXeW9/LWAQ=="
+  }
+}

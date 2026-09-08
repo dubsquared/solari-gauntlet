@@ -96,6 +96,32 @@ export async function withWatchdog<T>(p: Promise<T>, ms: number, what: string): 
   }
 }
 
+/**
+ * Run a plan step under GNU `timeout` INSIDE the sandbox. A command that hangs
+ * (blocking on stdin, opening a GUI, looping) is killed remotely and comes
+ * back as exit 124 with a hint — a failed step the self-healing loop can react
+ * to — instead of tripping the host watchdog and aborting the whole review.
+ */
+async function timedStep(
+  sandbox: Sandbox,
+  workDir: string,
+  cmd: string,
+  timeoutMs: number,
+): Promise<StepResult> {
+  const secs = Math.max(10, Math.floor(timeoutMs / 1000))
+  const res = await sh(
+    sandbox,
+    `cd ${workDir} && timeout -k 10 ${secs} sh -c '${cmd.replaceAll("'", "'\\''")}'`,
+    timeoutMs + 30_000,
+  )
+  if (res.exitCode === 124)
+    res.stderr +=
+      `\n[gauntlet] produced no exit for ${secs}s and was killed. It is probably blocking on ` +
+      `stdin (input()/read), opening a GUI, or looping. Feed stdin (</dev/null or echo |), pass ` +
+      `the required args, wrap it in a shorter timeout, or reconsider whether this is a "gui" app.`
+  return { ...res, cmd }
+}
+
 /** `commands.run` is not shell-interpreted, so everything goes through sh -c. */
 export async function sh(sandbox: Sandbox, cmd: string, timeoutMs = 180_000): Promise<StepResult> {
   const out = await withWatchdog(
@@ -234,7 +260,7 @@ export async function buildAndRun(
     let failed: StepResult | undefined
 
     for (const cmd of plan.setup) {
-      const res = await sh(sandbox, `cd ${workDir} && ${cmd}`, 300_000)
+      const res = await timedStep(sandbox, workDir, cmd, 300_000)
       steps.push(res)
       console.log(`    $ ${cmd} → exit ${res.exitCode}`)
       if (res.exitCode !== 0) {
@@ -248,7 +274,7 @@ export async function buildAndRun(
       // failure is evidence for the verdict, never a reason to abort the run.
       let testRun: TestRun | undefined
       if (plan.test) {
-        const t = await sh(sandbox, `cd ${workDir} && CI=true ${plan.test}`, 300_000)
+        const t = await timedStep(sandbox, workDir, `CI=true ${plan.test}`, 300_000)
         testRun = { cmd: plan.test, exitCode: t.exitCode, output: (t.stdout + t.stderr).slice(-3000) }
         console.log(`    $ ${plan.test} → ${t.exitCode === 0 ? "tests PASS" : `tests FAIL (exit ${t.exitCode})`}`)
       }
@@ -275,7 +301,7 @@ export async function buildAndRun(
         steps.push(failed)
         console.log(`    $ ${plan.run} → died on startup`)
       } else {
-        const res = await sh(sandbox, `cd ${workDir} && ${plan.run}`, 300_000)
+        const res = await timedStep(sandbox, workDir, plan.run, 300_000)
         steps.push(res)
         console.log(`    $ ${plan.run} → exit ${res.exitCode}`)
         if (res.exitCode === 0) return { plan, steps, testRun }
