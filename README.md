@@ -216,6 +216,16 @@ Shipped since the focus group:
   with `--warm` (same repo, over and over) and honours `--budget-tokens` as a
   cumulative ceiling that stops the whole watch, so it can never run unbounded.
   Works on repo and PR targets; rebuilds the Arena after every new review.
+- **Cross-batch clone detection** (`npm run similarity`) — every repo review
+  captures a MinHash structural fingerprint over its source k-shingles (the
+  MOSS/JPlag method), and this compares them pairwise, flagging notable
+  overlap (≥40%) and likely clones (≥80%) in `reports/similarity.md`. It's
+  fully deterministic — **no embeddings, no new provider, zero tokens, no
+  per-comparison cost** — which is the only kind of similarity search a
+  finance team signs off on. Similarity ≠ plagiarism (a shared framework or a
+  common template raises the score legitimately), so a flag is a prompt to
+  look, not a verdict. The detector is proven to fire (a pristine fork scores
+  100%); on the committed contest field it correctly reports no clones.
 - **Gauntlet Arena** (`npm run arena`) — a single self-updating scoreboard,
   `reports/arena.html`, ranking every repo review and listing every PR
   verdict, each row linking to the full evidence card. Pure render from the

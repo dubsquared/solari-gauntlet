@@ -12,6 +12,7 @@
     "smoke": "tsx src/smoke.ts",
     "verify": "tsx src/verify.ts",
     "arena": "tsx src/arena.ts",
+    "similarity": "tsx src/similarity.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -7,6 +7,7 @@
  *   SOLARI_API_KEY=... ANTHROPIC_API_KEY=... npm start -- <repo-url> [more...]
  */
 import { SolariClient } from "@solarisdk/sdk"
+import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { tokenUsage, writeVerdict } from "./ai.js"
@@ -21,7 +22,9 @@ import {
   securitySweep,
 } from "./sandbox.js"
 import { buildArena } from "./arena.js"
+import { captureFingerprint } from "./fingerprint.js"
 import { fetchPrMeta, parsePrUrl, reviewPr, type PrTarget } from "./pr.js"
+import { buildSimilarity } from "./similarity.js"
 import { writeIndex, writeReport, type ReportSummary } from "./report.js"
 import { findWarmSnapshot, lockfileHash, readSeedPlan, saveWarmSnapshot, syncToRef } from "./warm.js"
 import type { ProbeResult } from "./types.js"
@@ -159,6 +162,19 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
     const context = await gatherContext(sandbox, url, workDir)
     await saveRawContext(reportDir, context)
 
+    // Structural fingerprint for cross-batch clone detection — captured while
+    // the repo is in the sandbox, zero tokens, sealed with the rest.
+    try {
+      const fingerprint = await captureFingerprint(sandbox, workDir)
+      await mkdir(reportDir, { recursive: true })
+      await writeFile(
+        join(reportDir, "fingerprint.json"),
+        JSON.stringify({ repoUrl: url, commit, fingerprint }, null, 2) + "\n",
+      )
+    } catch {
+      /* fingerprinting is best-effort */
+    }
+
     // Circuit breaker: one review can never spend more than this on replans.
     const perReviewCap = Number(process.env.GAUNTLET_MAX_TOKENS_PER_REVIEW) || 40_000
     const executed = await buildAndRun(
@@ -268,6 +284,7 @@ async function watchLoop(): Promise<never> {
       try {
         await review(t)
         console.log(`  🏟  arena → ${await buildArena()}`)
+        await buildSimilarity().catch(() => {})
       } catch (err) {
         console.error(`  ✘ ${t.url}: ${err instanceof Error ? err.message : String(err)}`)
       }
@@ -345,6 +362,9 @@ if (summaries.length > 1) {
 // Keep the public scoreboard in sync with whatever we just reviewed.
 if (summaries.length > 0 || prTargets.length > 0) {
   await buildArena().then((p) => console.log(`arena → ${p}`)).catch(() => {})
+  await buildSimilarity()
+    .then((r) => console.log(`similarity → ${r.path} (${r.flagged} pair(s) flagged)`))
+    .catch(() => {})
 }
 
 // The line a finance team actually wants to see.
