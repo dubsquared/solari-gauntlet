@@ -20,7 +20,8 @@ import {
   parseRepoUrl,
   securitySweep,
 } from "./sandbox.js"
-import { parsePrUrl, reviewPr, type PrTarget } from "./pr.js"
+import { buildArena } from "./arena.js"
+import { fetchPrMeta, parsePrUrl, reviewPr, type PrTarget } from "./pr.js"
 import { writeIndex, writeReport, type ReportSummary } from "./report.js"
 import { findWarmSnapshot, lockfileHash, readSeedPlan, saveWarmSnapshot, syncToRef } from "./warm.js"
 import type { ProbeResult } from "./types.js"
@@ -59,6 +60,9 @@ const strictCheck = boolFlag("--strict-check", rest)
 const warm = boolFlag("--warm", rest) || process.env.GAUNTLET_WARM === "1"
 const noWarm = boolFlag("--no-warm", rest)
 const warmEnabled = warm && !noWarm
+// Watch mode: stand and re-review whenever a target's commit changes.
+const watch = boolFlag("--watch", rest)
+const interval = Math.max(60, Math.round(numFlag("--interval", rest, 300))) // seconds, floor 60
 // Starter plan allows 2 concurrent sandboxes; cap defensively above that.
 const concurrency = Math.min(8, Math.round(numFlag("--concurrency", rest, 1)))
 // Hard ceiling on Anthropic tokens for the whole batch — when the meter
@@ -210,6 +214,81 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
   }
 }
 
+const prOpts = { comment: prComment, dryRunComment, check: prCheck, dryRunCheck, strictCheck }
+
+/** Latest commit sha on a repo target's ref (default branch when unspecified). */
+async function currentSha(t: ReturnType<typeof parseRepoUrl>): Promise<string | undefined> {
+  const owner = t.url.replace("https://github.com/", "").replace(/\.git$/, "").split("/")
+  const q = t.ref ? `?sha=${encodeURIComponent(t.ref)}&per_page=1` : "?per_page=1"
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner[0]}/${owner[1]}/commits${q}`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+      },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) return undefined
+    const arr = (await res.json()) as Array<{ sha: string }>
+    return arr[0]?.sha
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Watch mode: a standing reviewer. Polls each target's commit sha every
+ * `interval`s and re-reviews ONLY when it changes — idle polls are one free
+ * GitHub call, so cost tracks real activity, not wall-clock. Warm-start pairs
+ * naturally (same repo, over and over). The cumulative --budget-tokens ceiling
+ * stops the whole watch, so it can never run unbounded spend.
+ */
+async function watchLoop(): Promise<never> {
+  const seen = new Map<string, string>()
+  console.log(
+    `👁  watch · ${targets.length + prTargets.length} target(s) · every ${interval}s` +
+      (warmEnabled ? " · warm" : "") +
+      (Number.isFinite(budgetTokens) ? ` · budget ${Math.round(budgetTokens / 1000)}k tokens` : "") +
+      " · Ctrl-C to stop",
+  )
+  for (;;) {
+    const spent = tokenUsage()
+    if (spent.input + spent.output >= budgetTokens) {
+      console.log(`\n⏹  budget ceiling reached (${Math.round((spent.input + spent.output) / 1000)}k tokens) — watch stopped`)
+      process.exit(0)
+    }
+    for (const t of targets) {
+      const sha = await currentSha(t)
+      if (!sha || seen.get(t.slug) === sha) continue
+      const first = !seen.has(t.slug)
+      seen.set(t.slug, sha)
+      console.log(`\n🔔 ${first ? "first sight" : "new commit"} ${t.url} @ ${sha.slice(0, 7)}`)
+      try {
+        await review(t)
+        console.log(`  🏟  arena → ${await buildArena()}`)
+      } catch (err) {
+        console.error(`  ✘ ${t.url}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    for (const p of prTargets) {
+      const meta = await fetchPrMeta(p).catch(() => undefined)
+      if (!meta || seen.get(p.slug) === meta.headSha) continue
+      const first = !seen.has(p.slug)
+      seen.set(p.slug, meta.headSha)
+      console.log(`\n🔔 ${first ? "first sight" : "new push"} ${p.owner}/${p.repo}#${p.number} @ ${meta.headSha.slice(0, 7)}`)
+      try {
+        await reviewPr(pt, p, prOpts)
+        console.log(`  🏟  arena → ${await buildArena()}`)
+      } catch (err) {
+        console.error(`  ✘ ${p.owner}/${p.repo}#${p.number}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+    await new Promise((r) => setTimeout(r, interval * 1000))
+  }
+}
+
+if (watch) await watchLoop()
+
 const summaries: ReportSummary[] = []
 const skippedForBudget: string[] = []
 let failures = 0
@@ -247,13 +326,7 @@ for (const prt of prTargets) {
     continue
   }
   try {
-    await reviewPr(pt, prt, {
-      comment: prComment,
-      dryRunComment,
-      check: prCheck,
-      dryRunCheck,
-      strictCheck,
-    })
+    await reviewPr(pt, prt, prOpts)
   } catch (err) {
     failures++
     console.error(
@@ -265,6 +338,11 @@ for (const prt of prTargets) {
 if (summaries.length > 1) {
   const index = await writeIndex("reports", summaries)
   console.log(`\nranked index → ${index}`)
+}
+
+// Keep the public scoreboard in sync with whatever we just reviewed.
+if (summaries.length > 0 || prTargets.length > 0) {
+  await buildArena().then((p) => console.log(`arena → ${p}`)).catch(() => {})
 }
 
 // The line a finance team actually wants to see.

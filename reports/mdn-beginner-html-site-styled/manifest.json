@@ -1,12 +1,18 @@
 {
   "repoUrl": "https://github.com/mdn/beginner-html-site-styled.git",
   "reviewedCommit": "6c7a360",
-  "sealedAt": "2026-09-07T22:45:01.799Z",
+  "sealedAt": "2026-09-08T00:29:55.239Z",
   "sha256": {
-    "context.txt": "d30f5cd3f33cbacf1bc7c7acfbc32e0b7c0cb06382bb824fbc185c0399843834",
-    "report.md": "3e979fbb0a0b1bad94d288d9690e3444208431a6ae6e78903138d19b0df5f5c8",
+    "invoice.json": "9351ffa75b5dedd5b5d5bfc2f9be4adffff9de8a55d4d483c3ddefb912e6a42b",
+    "report.html": "eb5dd618cee5adbc0d621d0d7e0eed5a16b1e9fd908beb48433bf7314e2dac2d",
+    "report.md": "99ef64fdd753342cb54b6b88674580633bbe35f1403b8340f1e5d8b954d2a4c6",
     "screenshot-mobile.png": "5a82829b9a7ae1dc75222066f6b3eaa2c92f67fe074b1df5111866eab20ac729",
     "screenshot.png": "7251094bee202f9a422022541adc7889975d1659541ea2f8c54c8c9a983f37a3",
-    "verdict.json": "9fcfb643a1a93dfb77e9652293cb089b9771752e73f964e58a8c4bf56bb6f430"
+    "verdict.json": "736bdee2ea45860db91632203166cd749bdc748a141dd588fcd6d0ef03779ba1"
+  },
+  "attestation": {
+    "algorithm": "ed25519",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQDhha/K6z65xHwnoUzbsKtzCqB8ywNk8HXzWQNxL1bg=\n-----END PUBLIC KEY-----\n",
+    "signature": "u8vkBbUH9tc+VCTZSjVAc5ThO3C0CxJ35qIl6zHZCd4EmCLn0cRezlsaOrT7ZJODzzR/xxtvYAeEaEwOZ+moDg=="
   }
 }

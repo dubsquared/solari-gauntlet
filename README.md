@@ -202,10 +202,18 @@ Shipped since the focus group:
   you re-review often; for trivial static repos the boot overhead can make it
   a wash, which is why it's off by default.
 
-Still on the roadmap:
-
-- **Watch mode / Gauntlet Arena** — a standing reviewer with a public,
-  self-updating scoreboard of report cards.
+- **Watch mode** (`--watch`) — a standing reviewer. It polls each target's
+  commit sha every `--interval` seconds (floor 60, default 300) and
+  re-reviews **only when the sha changes** — an idle poll is a single free
+  GitHub call, so spend tracks real activity, not wall-clock. Pairs naturally
+  with `--warm` (same repo, over and over) and honours `--budget-tokens` as a
+  cumulative ceiling that stops the whole watch, so it can never run unbounded.
+  Works on repo and PR targets; rebuilds the Arena after every new review.
+- **Gauntlet Arena** (`npm run arena`) — a single self-updating scoreboard,
+  `reports/arena.html`, ranking every repo review and listing every PR
+  verdict, each row linking to the full evidence card. Pure render from the
+  committed `verdict.json` files: no sandbox, no API, no tokens. Rebuilt
+  automatically after any batch or watch review.
 
 Ranked by demand across the earlier stakeholder panel:
 
