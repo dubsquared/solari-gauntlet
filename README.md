@@ -101,7 +101,12 @@ Beyond run-and-screenshot, every review also:
   in code, hard 10-step cap, 10s per step, same-origin only) that the cloud
   browser executes live. Each claim comes back **verified / failed /
   unverified** — the difference between "it renders" and "it works" — and the
-  checks happen while the session is recording, so they're in the replay;
+  checks happen while the session is recording, so they're in the replay.
+  **For GUI submissions the same flag drives the desktop** via computer-use:
+  Claude reads coordinates off the live screenshot, clicks and types in the
+  window (≤2 claims, ≤6 clamped actions each), and a vision call judges the
+  before/after frames — e.g. it verified "Right arrow moves the snake right"
+  and correctly *failed* "Down arrow moves it down" on a pygame game;
 - **generates three interview questions** grounded in the specific code —
   built to distinguish "wrote it and understands it" from "generated it and
   shipped";

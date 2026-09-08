@@ -412,6 +412,114 @@ ${UNTRUSTED_OPEN}${pageText.slice(0, 2000)}${UNTRUSTED_CLOSE}`
   }
 }
 
+/** A validated desktop action. Coordinates are clamped to the screen by the
+ *  executor; actions only ever touch the isolated desktop. */
+export type GuiAction =
+  | { op: "click"; x: number; y: number }
+  | { op: "doubleClick"; x: number; y: number }
+  | { op: "type"; text: string }
+  | { op: "key"; keys: string }
+
+export interface GuiClaimScript {
+  claim: string
+  actions: GuiAction[]
+  /** What should be visibly true afterward — checked by a follow-up vision call. */
+  expect: string
+}
+
+const MAX_GUI_CLAIMS = 2
+const MAX_GUI_ACTIONS = 6
+
+function validateGuiClaims(raw: unknown): GuiClaimScript[] {
+  const claims = (raw as { claims?: unknown }).claims
+  if (!Array.isArray(claims)) return []
+  const out: GuiClaimScript[] = []
+  for (const c of claims.slice(0, MAX_GUI_CLAIMS)) {
+    const claim = String((c as { claim?: unknown }).claim ?? "").slice(0, 300)
+    const expect = String((c as { expect?: unknown }).expect ?? "").slice(0, 300)
+    if (!claim || !expect) continue
+    const rawActions = (c as { actions?: unknown }).actions
+    const actions: GuiAction[] = []
+    if (Array.isArray(rawActions)) {
+      for (const a of rawActions.slice(0, MAX_GUI_ACTIONS)) {
+        const op = (a as { op?: unknown }).op
+        const x = Math.round(Number((a as { x?: unknown }).x))
+        const y = Math.round(Number((a as { y?: unknown }).y))
+        if ((op === "click" || op === "doubleClick") && Number.isFinite(x) && Number.isFinite(y))
+          actions.push({ op, x, y })
+        else if (op === "type") actions.push({ op, text: String((a as { text?: unknown }).text ?? "").slice(0, 200) })
+        else if (op === "key") actions.push({ op, keys: String((a as { keys?: unknown }).keys ?? "").slice(0, 40) })
+      }
+    }
+    if (actions.length) out.push({ claim, actions, expect })
+  }
+  return out
+}
+
+const GUI_CLAIMS_SYSTEM = `A desktop GUI app is running and you are shown a screenshot of it. From the
+README and what you SEE, extract up to ${MAX_GUI_CLAIMS} claims that can be checked by
+interacting with the window, and for each emit a short action script (max ${MAX_GUI_ACTIONS} actions)
+plus a plain-English "expect" describing what should become visibly true afterward. Use ONLY:
+  {"op":"click","x":<px>,"y":<px>}        (coordinates read off the screenshot)
+  {"op":"doubleClick","x":<px>,"y":<px>}
+  {"op":"type","text":"..."}
+  {"op":"key","keys":"Return"}            (or "space", "ctrl+s", an arrow key, etc.)
+Coordinates are pixels in the screenshot you are shown. Prefer claims a user could verify by
+clicking a button and seeing the screen change. If nothing is interactively checkable, return an
+empty list — never invent one. ${UNTRUSTED_RULES}
+Reply with ONLY JSON: {"claims":[{"claim":"...","actions":[...],"expect":"..."}]}`
+
+export async function extractGuiClaims(context: string, screenshotB64: string): Promise<GuiClaimScript[]> {
+  const user = `Repo context (README etc.):
+${context.slice(0, 5000)}
+
+The attached image is the running GUI. Read coordinates off it.`
+  try {
+    return await askJson(GUI_CLAIMS_SYSTEM, user, validateGuiClaims, screenshotB64)
+  } catch {
+    return []
+  }
+}
+
+/** Vision judge: did `expect` become true between the before and after shots? */
+export async function assertGuiChange(
+  expect: string,
+  beforeB64: string,
+  afterB64: string,
+): Promise<{ ok: boolean; detail: string }> {
+  const system = `You are shown TWO screenshots of a desktop GUI: the FIRST is before an action, the
+SECOND is after. Decide whether this expectation held: "${expect}". Reply with ONLY JSON:
+{"ok": true|false, "detail": "one sentence on what visibly changed or didn't"}`
+  try {
+    const res = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      system,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "BEFORE:" },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: beforeB64 } },
+            { type: "text", text: "AFTER:" },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: afterB64 } },
+          ],
+        },
+      ],
+    })
+    inputTokens += res.usage.input_tokens
+    outputTokens += res.usage.output_tokens
+    const block = res.content.find((b) => b.type === "text")
+    const parsed = extractJson(block && block.type === "text" ? block.text : "{}") as {
+      ok?: boolean
+      detail?: string
+    }
+    return { ok: Boolean(parsed.ok), detail: String(parsed.detail ?? "") }
+  } catch {
+    return { ok: false, detail: "vision assertion could not be evaluated" }
+  }
+}
+
 /** Rolling Anthropic token usage for this process — cost accounting per review. */
 let inputTokens = 0
 let outputTokens = 0

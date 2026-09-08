@@ -9,7 +9,8 @@ import { DesktopClient, type Desktop } from "@solarisdk/sdk"
 import { writeFile, mkdir } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { RunPlan, StepResult } from "./types.js"
+import { assertGuiChange, extractGuiClaims } from "./ai.js"
+import type { ClaimCheck, RunPlan, StepResult } from "./types.js"
 
 const BASE_URL = process.env.SOLARI_BASE_URL ?? "https://api.getsolari.com"
 const REPO_DIR = "/tmp/gauntlet-repo"
@@ -24,6 +25,55 @@ export interface GuiResult {
   steps: StepResult[]
   screenshot: Uint8Array
   streamUrl: string
+  claims?: ClaimCheck[]
+}
+
+const b64 = (b: Uint8Array): string => Buffer.from(b).toString("base64")
+
+/**
+ * Computer-use claim verification: extract checkable GUI claims from the
+ * README + the live screenshot, then DRIVE the desktop (click/type/key) to
+ * check each one, judging the before/after screenshots by vision. The desktop
+ * analog of web claim verification. Bounded: ≤2 claims, ≤6 clamped actions
+ * each, one extract + one assert vision call per claim.
+ */
+async function runGuiClaims(
+  desktop: Desktop,
+  context: string,
+  firstShot: Uint8Array,
+): Promise<ClaimCheck[]> {
+  const scripts = await extractGuiClaims(context, b64(firstShot))
+  if (!scripts.length) return []
+  const { w, h } = await desktop.display.size().catch(() => ({ w: 1280, h: 720 }))
+  const clamp = (v: number, max: number): number => Math.max(0, Math.min(max - 1, v))
+  const out: ClaimCheck[] = []
+  for (const s of scripts) {
+    try {
+      const before = await desktop.screenshot({ format: "png" } as never)
+      for (const a of s.actions) {
+        if (a.op === "click") await desktop.mouse.click(clamp(a.x, w), clamp(a.y, h))
+        else if (a.op === "doubleClick") await desktop.mouse.doubleClick(clamp(a.x, w), clamp(a.y, h))
+        else if (a.op === "type") await desktop.keyboard.type(a.text)
+        else if (a.op === "key") await desktop.keyboard.press(a.keys.includes("+") ? a.keys.split("+") : a.keys)
+        await new Promise((r) => setTimeout(r, 400))
+      }
+      await new Promise((r) => setTimeout(r, 800))
+      const after = await desktop.screenshot({ format: "png" } as never)
+      const v = await assertGuiChange(s.expect, b64(before), b64(after))
+      out.push({
+        claim: s.claim,
+        result: v.ok ? "verified" : "failed",
+        detail: v.detail || (v.ok ? "expected change observed" : "expected change not observed"),
+      })
+    } catch (err) {
+      out.push({
+        claim: s.claim,
+        result: "unverified",
+        detail: `couldn't drive it: ${(err instanceof Error ? err.message : String(err)).slice(0, 120)}`,
+      })
+    }
+  }
+  return out
 }
 
 /**
@@ -35,6 +85,8 @@ export async function reviewGui(
   target: { url: string; ref?: string },
   plan: RunPlan,
   reportDir: string,
+  /** When set, drive the GUI to check the README's claims (computer-use). */
+  verifyClaims?: { context: string },
 ): Promise<GuiResult> {
   const client = new DesktopClient({ apiKey: process.env.SOLARI_API_KEY!, baseUrl: BASE_URL })
   const desktop = await client.create({
@@ -79,7 +131,22 @@ export async function reviewGui(
     const log = await dsh(desktop, "tail -c 1500 /tmp/gui.log 2>/dev/null || true")
     steps.push({ cmd: "gui log", exitCode: 0, stdout: log.stdout, stderr: "" })
 
-    return { steps, screenshot: shot, streamUrl: desktop.streamUrl }
+    // Computer-use claim verification, while the session is live.
+    let claims: ClaimCheck[] | undefined
+    if (verifyClaims) {
+      claims = await runGuiClaims(desktop, verifyClaims.context, shot)
+      if (claims.length) {
+        const v = claims.filter((c) => c.result === "verified").length
+        const f = claims.filter((c) => c.result === "failed").length
+        console.log(`  🖲  GUI claims: ${v} verified, ${f} failed, ${claims.length - v - f} unverified`)
+      }
+    }
+
+    // Re-screenshot after interaction so the report shows the exercised state.
+    const finalShot = verifyClaims ? await desktop.screenshot({ format: "png" } as never) : shot
+    if (verifyClaims) await writeFile(join(reportDir, "screenshot.png"), finalShot)
+
+    return { steps, screenshot: finalShot, streamUrl: desktop.streamUrl, claims }
   } finally {
     // close() drops the local channel; destroy() ends the billed session.
     desktop.close()

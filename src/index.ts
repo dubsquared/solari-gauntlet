@@ -186,12 +186,13 @@ async function review(target: ReturnType<typeof parseRepoUrl>): Promise<ReportSu
       // Release the planning sandbox before booting the desktop — otherwise we
       // hold two sessions at once and blow the plan's concurrency limit.
       await sandbox.kill().catch(() => {})
-      const gui = await reviewGui(target, plan0, reportDir)
+      const gui = await reviewGui(target, plan0, reportDir, verifyClaims ? { context } : undefined)
       const probe: ProbeResult = {
         kind: "gui",
         consoleErrors: [],
         screenshot: "screenshot.png",
         streamUrl: gui.streamUrl,
+        claims: gui.claims,
         output: gui.steps.map((s) => `$ ${s.cmd} (exit ${s.exitCode})`).join("\n"),
       }
       const b64 = Buffer.from(gui.screenshot).toString("base64")
